@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Wallet, RefreshCw } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listPendingPayments, markPaid } from '../../lib/api'
 
 function formatDeparture(iso) {
@@ -43,19 +46,27 @@ export default function PendingPayments() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-ink-900">Pending Pay-at-Park</h1>
-        <button type="button" onClick={load} className="text-xs font-semibold text-brand-600">
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        icon={Wallet}
+        title="Pending Payments"
+        description="Cash reservations waiting to be collected at the counter."
+        actions={
+          <button
+            type="button"
+            onClick={load}
+            className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-brand-600 shadow-sm"
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+        }
+      />
 
       {error && <p className="text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="text-center text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : bookings.length === 0 ? (
-        <p className="text-center text-sm text-ink-500">No pending pay-at-park reservations.</p>
+        <EmptyState icon={Wallet} message="No pending pay-at-park reservations." />
       ) : (
         bookings.map((b) => (
           <Card key={b.id} className="flex items-center justify-between gap-3">

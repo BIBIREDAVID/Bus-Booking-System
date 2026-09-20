@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { UserPlus } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
 import { ApiError, getSeatMap, listParks, listStaffTrips, manualBooking, searchTrips } from '../../lib/api'
 
 function formatDeparture(iso) {
@@ -146,6 +148,7 @@ export default function ManualBooking() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <PageHeader icon={UserPlus} title="Manual Booking" description="Sell a walk-in or phone booking from the counter." />
       <Card>
         <h2 className="text-sm font-bold text-ink-900">1. Select Trip</h2>
         <select

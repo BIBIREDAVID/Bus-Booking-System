@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { PackageSearch } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listStaffLostFound, listStaffTrips, logFoundItem, updateLostFoundStatus } from '../../lib/api'
 
 const STATUS_TONE = {
@@ -73,6 +76,7 @@ export default function LostFound() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <PageHeader icon={PackageSearch} title="Lost & Found" description="Log items found at your park and track their status." />
       <Card>
         <h2 className="text-sm font-bold text-ink-900">Log a Found Item</h2>
         <form onSubmit={handleLog} className="mt-3 flex flex-col gap-3">
@@ -113,9 +117,9 @@ export default function LostFound() {
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-bold text-ink-900">Items at Your Park</h2>
         {loading ? (
-          <p className="text-center text-sm text-ink-500">Loading...</p>
+          <LoadingState />
         ) : items.length === 0 ? (
-          <p className="text-center text-sm text-ink-500">No items logged yet.</p>
+          <EmptyState icon={PackageSearch} message="No items logged yet." />
         ) : (
           items.map((item) => (
             <Card key={item.id}>

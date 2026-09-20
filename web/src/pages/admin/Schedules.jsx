@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { CalendarClock } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import {
   ApiError,
   createRouteSchedule,
@@ -84,6 +87,7 @@ export default function Schedules() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PageHeader icon={CalendarClock} title="Schedules" description="Recurring departures the nightly job expands into real trips." />
       <Card className="max-w-xl">
         <h2 className="text-xl font-bold text-ink-900">New route schedule</h2>
         <p className="mt-1 text-sm text-ink-500">
@@ -141,9 +145,9 @@ export default function Schedules() {
       <Card>
         <h2 className="text-xl font-bold text-ink-900">Existing schedules</h2>
         {loading ? (
-          <p className="mt-4 text-sm text-ink-500">Loading...</p>
+          <LoadingState />
         ) : schedules.length === 0 ? (
-          <p className="mt-4 text-sm text-ink-500">No schedules yet.</p>
+          <EmptyState icon={CalendarClock} message="No schedules yet." />
         ) : (
           <div className="mt-4 flex flex-col divide-y divide-brand-50">
             {schedules.map((schedule) => (

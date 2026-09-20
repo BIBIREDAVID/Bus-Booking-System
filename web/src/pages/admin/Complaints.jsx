@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { MessageSquareWarning } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listAdminComplaints, updateAdminComplaint } from '../../lib/api'
 
 const STATUS_OPTIONS = ['open', 'in_review', 'resolved']
@@ -45,8 +48,8 @@ export default function Complaints() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-ink-900">Complaints</h1>
+      <PageHeader icon={MessageSquareWarning} title="Complaints" description="Triage and resolve rider complaints." />
+      <div className="-mt-2 flex items-center justify-end">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -64,9 +67,9 @@ export default function Complaints() {
       {error && <p className="text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="text-center text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : complaints.length === 0 ? (
-        <p className="text-center text-sm text-ink-500">No complaints found.</p>
+        <EmptyState icon={MessageSquareWarning} message="No complaints found." />
       ) : (
         complaints.map((c) => (
           <Card key={c.id}>

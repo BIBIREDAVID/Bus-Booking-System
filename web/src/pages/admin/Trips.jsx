@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Bus as BusIcon } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, assignTrip, cancelTrip, listBuses, listDrivers, listTrips } from '../../lib/api'
 
 const STATUS_STYLES = {
@@ -151,9 +154,10 @@ export default function Trips() {
   }, [statusFilter])
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-ink-900">Generated trips</h2>
+    <div>
+      <PageHeader icon={BusIcon} title="Trips" description="Assign a bus and driver to each generated trip." />
+      <Card>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -170,11 +174,12 @@ export default function Trips() {
       {error && <p className="mt-3 text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="mt-4 text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : trips.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-500">
-          No trips yet — create an active route schedule and run the trip-generation job.
-        </p>
+        <EmptyState
+          icon={BusIcon}
+          message="No trips yet — create an active route schedule and run the trip-generation job."
+        />
       ) : (
         <div className="mt-4 flex flex-col">
           {trips.map((trip) => (
@@ -182,6 +187,7 @@ export default function Trips() {
           ))}
         </div>
       )}
-    </Card>
+      </Card>
+    </div>
   )
 }

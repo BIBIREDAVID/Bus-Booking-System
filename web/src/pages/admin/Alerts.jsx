@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Megaphone } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, createTripAlert, listAdminTripAlerts, listRoutes, listTrips } from '../../lib/api'
 
 const TYPE_LABEL = {
@@ -74,6 +77,7 @@ export default function Alerts() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <PageHeader icon={Megaphone} title="Travel Alerts" description="Post delay, route change, cancellation, or holiday notices." />
       <Card>
         <h2 className="text-sm font-bold text-ink-900">Post a Travel Alert</h2>
         <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-3">
@@ -164,9 +168,9 @@ export default function Alerts() {
       <Card>
         <h2 className="text-sm font-bold text-ink-900">Recent Alerts</h2>
         {loading ? (
-          <p className="mt-3 text-sm text-ink-500">Loading...</p>
+          <LoadingState />
         ) : alerts.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-500">No alerts posted yet.</p>
+          <EmptyState icon={Megaphone} message="No alerts posted yet." />
         ) : (
           <div className="mt-3 flex flex-col divide-y divide-brand-50">
             {alerts.map((a) => (

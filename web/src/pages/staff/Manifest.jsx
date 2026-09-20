@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { ClipboardList } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, getManifest, listStaffTrips } from '../../lib/api'
 
 function formatDeparture(iso) {
@@ -17,6 +20,12 @@ const STATUS_LABEL = {
   booked: 'Paid',
   reserved_unpaid: 'Pay at Park',
   completed: 'Completed',
+}
+
+const STATUS_TONE = {
+  booked: 'bg-green-50 text-green-700',
+  reserved_unpaid: 'bg-amber-50 text-amber-700',
+  completed: 'bg-blue-50 text-blue-700',
 }
 
 export default function Manifest() {
@@ -57,6 +66,10 @@ export default function Manifest() {
         }
       `}</style>
 
+      <div className="no-print">
+        <PageHeader icon={ClipboardList} title="Manifest" description="Live passenger list, sorted by seat." />
+      </div>
+
       <Card className="no-print">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-1 items-center gap-2">
@@ -93,9 +106,9 @@ export default function Manifest() {
       {error && <p className="text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="text-center text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : trips.length === 0 ? (
-        <p className="text-center text-sm text-ink-500">No upcoming trips scheduled from your park.</p>
+        <EmptyState icon={ClipboardList} message="No upcoming trips scheduled from your park." />
       ) : manifest ? (
         <Card>
           <div className="mb-3">
@@ -107,7 +120,7 @@ export default function Manifest() {
           </div>
 
           {manifest.passengers.length === 0 ? (
-            <p className="text-sm text-ink-500">No bookings yet for this trip.</p>
+            <EmptyState icon={ClipboardList} message="No bookings yet for this trip." />
           ) : (
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -127,8 +140,18 @@ export default function Manifest() {
                     <td className="py-2 pr-2">{p.passengerName ?? 'Unnamed'}</td>
                     <td className="py-2 pr-2">{p.passengerPhone}</td>
                     <td className="py-2 pr-2">{p.segment}</td>
-                    <td className="py-2 pr-2">{STATUS_LABEL[p.status] ?? p.status}</td>
-                    <td className="py-2">{p.boarded ? '✓' : '—'}</td>
+                    <td className="py-2 pr-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_TONE[p.status] ?? ''}`}>
+                        {STATUS_LABEL[p.status] ?? p.status}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      {p.boarded ? (
+                        <span className="font-semibold text-green-700">✓ Boarded</span>
+                      ) : (
+                        <span className="text-ink-500/60">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

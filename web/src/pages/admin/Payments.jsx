@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Wallet } from 'lucide-react'
 import Card from '../../components/Card'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listPaymentIntents, listWalletTransactions } from '../../lib/api'
 
 const TXN_TYPE_STYLES = {
@@ -71,9 +74,9 @@ function WalletLedger() {
       {error && <p className="mt-3 text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="mt-4 text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : txns.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-500">No wallet transactions match these filters.</p>
+        <EmptyState icon={Wallet} message="No wallet transactions match these filters." />
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[600px] text-left text-sm">
@@ -172,9 +175,9 @@ function GatewayPayments() {
       {error && <p className="mt-3 text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="mt-4 text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : intents.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-500">No gateway payments match these filters.</p>
+        <EmptyState icon={Wallet} message="No gateway payments match these filters." />
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -221,6 +224,7 @@ export default function Payments() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PageHeader icon={Wallet} title="Payments" description="Wallet ledger entries and gateway top-up attempts." />
       <div className="flex gap-2">
         <button
           type="button"

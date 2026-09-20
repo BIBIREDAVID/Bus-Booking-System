@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { ScanLine } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
 import { ApiError, boardBooking, searchCheckin } from '../../lib/api'
 
 function formatDeparture(iso) {
@@ -98,9 +100,9 @@ export default function Checkin() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <PageHeader icon={ScanLine} title="Check-in" description="Find a passenger by name, phone, or ticket QR code." />
       <Card>
-        <h1 className="text-sm font-bold text-ink-900">Check-in</h1>
-        <form onSubmit={handleSearchSubmit} className="mt-3 flex gap-2">
+        <form onSubmit={handleSearchSubmit} className="flex gap-2">
           <input
             autoFocus
             placeholder="Passenger name, phone, or scan QR"

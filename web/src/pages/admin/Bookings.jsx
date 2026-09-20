@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Ticket } from 'lucide-react'
 import Card from '../../components/Card'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listAdminBookings } from '../../lib/api'
 
 const STATUS_STYLES = {
@@ -47,9 +50,10 @@ export default function Bookings() {
   }, [status, paymentMethod, phone])
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-ink-900">Bookings</h2>
+    <div>
+      <PageHeader icon={Ticket} title="Bookings" description="Every booking across every route, searchable by rider." />
+      <Card>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
@@ -87,9 +91,9 @@ export default function Bookings() {
       {error && <p className="mt-3 text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="mt-4 text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : bookings.length === 0 ? (
-        <p className="mt-4 text-sm text-ink-500">No bookings match these filters.</p>
+        <EmptyState icon={Ticket} message="No bookings match these filters." />
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -133,6 +137,7 @@ export default function Bookings() {
           </table>
         </div>
       )}
-    </Card>
+      </Card>
+    </div>
   )
 }

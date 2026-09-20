@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { LifeBuoy } from 'lucide-react'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
+import PageHeader from '../../components/PageHeader'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { ApiError, listAdminSupportTickets, resolveSupportTicket } from '../../lib/api'
 
 const STATUS_TONE = {
@@ -40,8 +43,8 @@ export default function Support() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-ink-900">Support Tickets</h1>
+      <PageHeader icon={LifeBuoy} title="Support Tickets" description="Payment, booking, and technical requests from riders." />
+      <div className="-mt-2 flex items-center justify-end">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -56,9 +59,9 @@ export default function Support() {
       {error && <p className="text-sm text-brand-700">{error}</p>}
 
       {loading ? (
-        <p className="text-center text-sm text-ink-500">Loading...</p>
+        <LoadingState />
       ) : tickets.length === 0 ? (
-        <p className="text-center text-sm text-ink-500">No tickets found.</p>
+        <EmptyState icon={LifeBuoy} message="No tickets found." />
       ) : (
         tickets.map((t) => (
           <Card key={t.id} className="flex items-center justify-between gap-3">
