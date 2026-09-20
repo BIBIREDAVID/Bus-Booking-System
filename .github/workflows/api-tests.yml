@@ -1,0 +1,69 @@
+name: API tests
+
+# Runs the /api integration test suite against a real Postgres service
+# container on every push and PR — the same tests that only ran
+# locally before, now enforced on every change instead of depending on
+# someone remembering `npm test`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: template1
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # A real Postgres instance, not `prisma dev`'s embedded PGlite —
+      # &pgbouncer=true is still harmless here (see api/.env.example's
+      # comment on why it's needed against PGlite specifically) and
+      # keeps this URL interchangeable with the local dev one.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/template1?sslmode=disable&pgbouncer=true
+      JWT_SECRET: ci-test-secret-not-for-production
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_DAYS: 30
+      SQUAD_SECRET_KEY: ci-test-squad-secret
+      PAYSTACK_SECRET_KEY: ci-test-paystack-secret
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply database migrations
+        working-directory: api
+        run: npx prisma migrate deploy
+
+      - name: Generate Prisma Client
+        working-directory: api
+        run: npx prisma generate
+
+      - name: Typecheck
+        working-directory: api
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: api
+        run: npm test

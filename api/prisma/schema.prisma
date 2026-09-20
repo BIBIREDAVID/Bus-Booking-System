@@ -1,0 +1,668 @@
+// Prisma schema for the Interstate Bus Booking App.
+// Translated 1:1 from /schema.sql — table/column names are preserved in
+// Postgres via @@map / @map, while Prisma-facing names use PascalCase
+// models and camelCase fields.
+//
+// Known gaps:
+// - Prisma's schema language has no way to declare arbitrary CHECK
+//   constraints (as of this Prisma version), so the three CHECK
+//   constraints in schema.sql —
+//     buses.capacity > 0
+//     users.staff_has_home_park (role <> 'park_staff' OR home_park_id IS NOT NULL)
+//     booking_ratings.stars BETWEEN 1 AND 5
+//   — are NOT expressed below. They are instead added by hand to the
+//   generated migration SQL (see prisma/migrations/*_init/migration.sql)
+//   so the constraints still exist at the database level.
+// - schema.sql runs `CREATE EXTENSION IF NOT EXISTS "pgcrypto"` for
+//   gen_random_uuid(). Local dev here uses `npx prisma dev` (a
+//   zero-install local Postgres), which doesn't support installing
+//   extensions. gen_random_uuid() has been built into Postgres core
+//   since v13 regardless, so the extension isn't actually needed — it's
+//   omitted here. If you later point this at a Postgres older than v13,
+//   you'll need to add `CREATE EXTENSION IF NOT EXISTS pgcrypto;` back.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum UserRole {
+  rider
+  park_staff
+  admin
+
+  @@map("user_role")
+}
+
+enum SeatClass {
+  standard
+  luxury
+  vip
+
+  @@map("seat_class")
+}
+
+enum BusStatus {
+  active
+  maintenance
+
+  @@map("bus_status")
+}
+
+enum DriverStatus {
+  active
+  inactive
+
+  @@map("driver_status")
+}
+
+enum TripStatus {
+  scheduled
+  in_progress
+  completed
+  cancelled
+
+  @@map("trip_status")
+}
+
+enum BookingStatus {
+  held
+  reserved_unpaid
+  booked
+  cancelled
+  completed
+
+  @@map("booking_status")
+}
+
+enum PaymentMethod {
+  wallet
+  squad
+  paystack
+  pay_at_park
+
+  @@map("payment_method")
+}
+
+enum WalletTxnType {
+  fund
+  debit
+  refund
+
+  @@map("wallet_txn_type")
+}
+
+enum AlertType {
+  delay
+  route_change
+  cancellation
+  holiday_notice
+
+  @@map("alert_type")
+}
+
+enum ComplaintStatus {
+  open
+  in_review
+  resolved
+
+  @@map("complaint_status")
+}
+
+enum LostFoundType {
+  lost
+  found
+
+  @@map("lost_found_type")
+}
+
+enum LostFoundStatus {
+  open
+  claimed
+  closed
+
+  @@map("lost_found_status")
+}
+
+enum SupportCategory {
+  payment
+  booking
+  technical
+  other
+
+  @@map("support_category")
+}
+
+enum SupportStatus {
+  open
+  resolved
+
+  @@map("support_status")
+}
+
+enum StopAlertStatus {
+  active
+  fired
+  cancelled
+
+  @@map("stop_alert_status")
+}
+
+// ------------------------------------------------------------
+// CORE REFERENCE DATA
+// ------------------------------------------------------------
+
+model Park {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  address   String?
+  city      String
+  state     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  staffUsers     User[]          @relation("UserHomePark")
+  routesAsOrigin Route[]         @relation("RouteOriginPark")
+  routesAsDest   Route[]         @relation("RouteDestPark")
+  routeStops     RouteStop[]
+  stopAlerts     StopAlert[]
+  lostFoundItems LostFoundItem[]
+
+  @@map("parks")
+}
+
+model Bus {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  plate     String    @unique
+  capacity  Int
+  class     SeatClass
+  status    BusStatus @default(active)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  trips Trip[]
+
+  @@map("buses")
+}
+
+model Driver {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  phone     String       @unique
+  licenseNo String       @unique @map("license_no")
+  status    DriverStatus @default(active)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  trips Trip[]
+
+  @@map("drivers")
+}
+
+// ------------------------------------------------------------
+// USERS / AUTH
+// ------------------------------------------------------------
+
+model User {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String?
+  phone             String   @unique
+  email             String?
+  role              UserRole @default(rider)
+  homeParkId        String?  @map("home_park_id") @db.Uuid
+  preferredLanguage String?  @default("en") @map("preferred_language")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  homePark Park? @relation("UserHomePark", fields: [homeParkId], references: [id], onDelete: NoAction)
+
+  savedPassengers         SavedPassenger[]
+  createdTripAlerts       TripAlert[]         @relation("TripAlertCreatedBy")
+  seatHolds               SeatHold[]
+  bookings                Booking[]           @relation("BookingUser")
+  performedBookings       Booking[]           @relation("BookingPerformedBy")
+  wallet                  Wallet?
+  walletTransactions      WalletTransaction[]
+  stopAlerts              StopAlert[]
+  complaints              Complaint[]         @relation("ComplaintUser")
+  assignedComplaints      Complaint[]         @relation("ComplaintAssignedTo")
+  submittedLostFoundItems LostFoundItem[]     @relation("LostFoundSubmittedBy")
+  supportTickets          SupportTicket[]
+  refreshTokens           RefreshToken[]
+  paymentIntents          PaymentIntent[]
+
+  @@map("users")
+}
+
+model SavedPassenger {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_passengers")
+}
+
+// ------------------------------------------------------------
+// ROUTES, STOPS, SEGMENTS
+// ------------------------------------------------------------
+
+model Route {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  originParkId String   @map("origin_park_id") @db.Uuid
+  destParkId   String   @map("dest_park_id") @db.Uuid
+  durationMins Int      @map("duration_mins")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  originPark Park @relation("RouteOriginPark", fields: [originParkId], references: [id])
+  destPark   Park @relation("RouteDestPark", fields: [destParkId], references: [id])
+
+  routeStops     RouteStop[]
+  routeSegments  RouteSegment[]
+  routeSchedules RouteSchedule[]
+  trips          Trip[]
+  tripAlerts     TripAlert[]
+
+  @@map("routes")
+}
+
+model RouteStop {
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routeId             String  @map("route_id") @db.Uuid
+  parkId              String  @map("park_id") @db.Uuid
+  stopOrder           Int     @map("stop_order")
+  arrivalOffsetMins   Int?    @map("arrival_offset_mins")
+  departureOffsetMins Int?    @map("departure_offset_mins")
+  isBoardingPoint     Boolean @default(true) @map("is_boarding_point")
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  park  Park  @relation(fields: [parkId], references: [id])
+
+  segmentsFrom   RouteSegment[] @relation("RouteSegmentFromStop")
+  segmentsTo     RouteSegment[] @relation("RouteSegmentToStop")
+  bookingsBoard  Booking[]      @relation("BookingBoardStop")
+  bookingsAlight Booking[]      @relation("BookingAlightStop")
+  holdsBoard     SeatHold[]     @relation("SeatHoldBoardStop")
+  holdsAlight    SeatHold[]     @relation("SeatHoldAlightStop")
+
+  @@unique([routeId, stopOrder])
+  @@map("route_stops")
+}
+
+model RouteSegment {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routeId      String  @map("route_id") @db.Uuid
+  fromStopId   String  @map("from_stop_id") @db.Uuid
+  toStopId     String  @map("to_stop_id") @db.Uuid
+  fareStandard Decimal @map("fare_standard") @db.Decimal(10, 2)
+  fareLuxury   Decimal @map("fare_luxury") @db.Decimal(10, 2)
+  fareVip      Decimal @map("fare_vip") @db.Decimal(10, 2)
+
+  route    Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  fromStop RouteStop @relation("RouteSegmentFromStop", fields: [fromStopId], references: [id])
+  toStop   RouteStop @relation("RouteSegmentToStop", fields: [toStopId], references: [id])
+
+  @@unique([routeId, fromStopId, toStopId])
+  @@map("route_segments")
+}
+
+// ------------------------------------------------------------
+// SCHEDULES & TRIPS
+// ------------------------------------------------------------
+
+model RouteSchedule {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routeId       String   @map("route_id") @db.Uuid
+  departureTime DateTime @map("departure_time") @db.Time
+  daysOfWeek    Int[]    @map("days_of_week") @db.SmallInt
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@map("route_schedules")
+}
+
+model Trip {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routeId       String     @map("route_id") @db.Uuid
+  busId         String?    @map("bus_id") @db.Uuid
+  driverId      String?    @map("driver_id") @db.Uuid
+  departureTime DateTime   @map("departure_time") @db.Timestamptz
+  status        TripStatus @default(scheduled)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  route  Route   @relation(fields: [routeId], references: [id])
+  bus    Bus?    @relation(fields: [busId], references: [id], onDelete: NoAction)
+  driver Driver? @relation(fields: [driverId], references: [id], onDelete: NoAction)
+
+  tripSeats      TripSeat[]
+  tripLocation   TripLocation?
+  tripAlerts     TripAlert[]
+  seatHolds      SeatHold[]
+  bookings       Booking[]
+  stopAlerts     StopAlert[]
+  complaints     Complaint[]
+  lostFoundItems LostFoundItem[]
+
+  @@unique([routeId, departureTime])
+  @@map("trips")
+}
+
+model TripSeat {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId     String    @map("trip_id") @db.Uuid
+  seatNumber String    @map("seat_number")
+  class      SeatClass
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  seatHolds SeatHold[]
+  bookings  Booking[]
+
+  @@unique([tripId, seatNumber])
+  @@map("trip_seats")
+}
+
+// Unused until the live-tracking phase ships; kept here so the schema
+// doesn't need to change later.
+model TripLocation {
+  tripId    String    @id @map("trip_id") @db.Uuid
+  lat       Float?    @db.DoublePrecision
+  lng       Float?    @db.DoublePrecision
+  updatedAt DateTime? @map("updated_at") @db.Timestamptz
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("trip_locations")
+}
+
+model TripAlert {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId    String?   @map("trip_id") @db.Uuid
+  routeId   String?   @map("route_id") @db.Uuid
+  type      AlertType
+  message   String
+  createdBy String    @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  trip    Trip?  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  route   Route? @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  creator User   @relation("TripAlertCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("trip_alerts")
+}
+
+// ------------------------------------------------------------
+// SEAT HOLDS & BOOKINGS (segment-aware)
+// ------------------------------------------------------------
+
+model SeatHold {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId       String   @map("trip_id") @db.Uuid
+  seatId       String   @map("seat_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  boardStopId  String   @map("board_stop_id") @db.Uuid
+  alightStopId String   @map("alight_stop_id") @db.Uuid
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  trip       Trip      @relation(fields: [tripId], references: [id])
+  seat       TripSeat  @relation(fields: [seatId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+  boardStop  RouteStop @relation("SeatHoldBoardStop", fields: [boardStopId], references: [id])
+  alightStop RouteStop @relation("SeatHoldAlightStop", fields: [alightStopId], references: [id])
+
+  @@index([tripId, seatId], map: "idx_seat_holds_seat_trip")
+  @@index([expiresAt], map: "idx_seat_holds_expiry")
+  @@map("seat_holds")
+}
+
+model Booking {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  tripId          String        @map("trip_id") @db.Uuid
+  seatId          String        @map("seat_id") @db.Uuid
+  boardStopId     String        @map("board_stop_id") @db.Uuid
+  alightStopId    String        @map("alight_stop_id") @db.Uuid
+  class           SeatClass
+  paymentMethod   PaymentMethod @map("payment_method")
+  amount          Decimal       @db.Decimal(10, 2)
+  status          BookingStatus @default(held)
+  performedBy     String?       @map("performed_by") @db.Uuid
+  payAtParkCutoff DateTime?     @map("pay_at_park_cutoff") @db.Timestamptz
+  boardedAt       DateTime?     @map("boarded_at") @db.Timestamptz
+  reminderSentAt  DateTime?     @map("reminder_sent_at") @db.Timestamptz
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User      @relation("BookingUser", fields: [userId], references: [id])
+  performer  User?     @relation("BookingPerformedBy", fields: [performedBy], references: [id], onDelete: NoAction)
+  trip       Trip      @relation(fields: [tripId], references: [id])
+  seat       TripSeat  @relation(fields: [seatId], references: [id])
+  boardStop  RouteStop @relation("BookingBoardStop", fields: [boardStopId], references: [id])
+  alightStop RouteStop @relation("BookingAlightStop", fields: [alightStopId], references: [id])
+
+  rating             BookingRating?
+  walletTransactions WalletTransaction[]
+  paymentIntent      PaymentIntent?
+
+  @@index([tripId, seatId], map: "idx_bookings_seat_trip")
+  @@index([userId], map: "idx_bookings_user")
+  @@map("bookings")
+}
+
+// Segment overlap rule (enforced in application/transaction logic, not
+// as a DB constraint): two bookings on the SAME seat and SAME trip
+// conflict if existing.board_stop_order < new.alight_stop_order AND
+// existing.alight_stop_order > new.board_stop_order — see the example
+// query at the bottom of schema.sql.
+
+model BookingRating {
+  bookingId String   @id @map("booking_id") @db.Uuid
+  stars     Int      @db.SmallInt
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("booking_ratings")
+}
+
+// ------------------------------------------------------------
+// WALLET (ledger is source of truth; balance is a cache)
+// ------------------------------------------------------------
+
+model Wallet {
+  userId    String   @id @map("user_id") @db.Uuid
+  balance   Decimal  @default(0) @db.Decimal(10, 2)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  type      WalletTxnType
+  amount    Decimal       @db.Decimal(10, 2)
+  bookingId String?       @map("booking_id") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: NoAction)
+
+  @@index([userId, createdAt], map: "idx_wallet_txns_user")
+  @@map("wallet_transactions")
+}
+
+// ------------------------------------------------------------
+// STOP ALERTS (Phase 3, live-tracking dependent)
+// ------------------------------------------------------------
+
+model StopAlert {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  tripId           String          @map("trip_id") @db.Uuid
+  targetParkId     String          @map("target_park_id") @db.Uuid
+  notifyMinsBefore Int             @map("notify_mins_before")
+  status           StopAlertStatus @default(active)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip       Trip @relation(fields: [tripId], references: [id])
+  targetPark Park @relation(fields: [targetParkId], references: [id])
+
+  @@map("stop_alerts")
+}
+
+// ------------------------------------------------------------
+// SUPPORT: COMPLAINTS, LOST & FOUND, TICKETS
+// ------------------------------------------------------------
+
+model Complaint {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String          @map("user_id") @db.Uuid
+  tripId     String?         @map("trip_id") @db.Uuid
+  category   String
+  message    String
+  status         ComplaintStatus @default(open)
+  assignedTo     String?         @map("assigned_to") @db.Uuid
+  resolutionNotes String?        @map("resolution_notes")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  resolvedAt     DateTime?       @map("resolved_at") @db.Timestamptz
+
+  user     User  @relation("ComplaintUser", fields: [userId], references: [id])
+  trip     Trip? @relation(fields: [tripId], references: [id], onDelete: NoAction)
+  assignee User? @relation("ComplaintAssignedTo", fields: [assignedTo], references: [id], onDelete: NoAction)
+
+  @@map("complaints")
+}
+
+model LostFoundItem {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        LostFoundType
+  tripId      String?         @map("trip_id") @db.Uuid
+  description String
+  contactInfo String?         @map("contact_info")
+  submittedBy String?         @map("submitted_by") @db.Uuid
+  homeParkId  String?         @map("home_park_id") @db.Uuid
+  status      LostFoundStatus @default(open)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  trip      Trip? @relation(fields: [tripId], references: [id], onDelete: NoAction)
+  submitter User? @relation("LostFoundSubmittedBy", fields: [submittedBy], references: [id], onDelete: NoAction)
+  homePark  Park? @relation(fields: [homeParkId], references: [id], onDelete: NoAction)
+
+  @@map("lost_found_items")
+}
+
+model SupportTicket {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String          @map("user_id") @db.Uuid
+  category  SupportCategory
+  message   String
+  status    SupportStatus   @default(open)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("support_tickets")
+}
+
+// ------------------------------------------------------------
+// AUTH (not part of schema.sql — added for OTP phone login)
+// ------------------------------------------------------------
+
+// Short-lived OTP codes for phone verification. Code is bcrypt-hashed,
+// never stored in plaintext. A row is single-use (consumedAt) and
+// tracks attempts so verify-otp can lock out brute-force guessing.
+model OtpCode {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([phone, createdAt], map: "idx_otp_codes_phone")
+  @@map("otp_codes")
+}
+
+// Opaque, DB-backed refresh tokens (not JWTs) so they can be revoked
+// individually. Only the SHA-256 hash is stored. Rotated on each use.
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_refresh_tokens_user")
+  @@map("refresh_tokens")
+}
+
+// ------------------------------------------------------------
+// PAYMENTS (not part of schema.sql — added for gateway checkout)
+// ------------------------------------------------------------
+
+enum PaymentGatewayProvider {
+  squad
+  paystack
+
+  @@map("payment_gateway_provider")
+}
+
+enum PaymentIntentStatus {
+  pending
+  succeeded
+  failed
+
+  @@map("payment_intent_status")
+}
+
+// Bridges an async gateway payment (initiated now, confirmed later by
+// webhook) back to the booking it should produce. Needed because the
+// original seat_holds row may expire before the webhook arrives — see
+// the comment on lib/bookingTransaction.ts for how that's handled.
+model PaymentIntent {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String                 @map("user_id") @db.Uuid
+  provider          PaymentGatewayProvider
+  providerReference String                 @unique @map("provider_reference")
+  amount            Decimal                @db.Decimal(10, 2)
+  status            PaymentIntentStatus    @default(pending)
+
+  // Booking context captured at initiation time, independent of
+  // whether the hold row still exists by the time the webhook fires.
+  // All nullable: a plain wallet top-up (POST /wallet/topup/initiate)
+  // has no booking attached at all — the webhook just credits the
+  // wallet and stops, rather than also trying to create a booking.
+  holdId       String? @map("hold_id") @db.Uuid
+  tripId       String? @map("trip_id") @db.Uuid
+  seatId       String? @map("seat_id") @db.Uuid
+  boardStopId  String? @map("board_stop_id") @db.Uuid
+  alightStopId String? @map("alight_stop_id") @db.Uuid
+
+  bookingId   String?   @unique @map("booking_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: NoAction)
+
+  @@index([userId], map: "idx_payment_intents_user")
+  @@map("payment_intents")
+}
