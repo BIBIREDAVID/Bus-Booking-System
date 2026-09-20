@@ -6,7 +6,7 @@ name: API tests
 # someone remembering `npm test`.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
 jobs:
