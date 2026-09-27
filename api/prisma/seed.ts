@@ -1,5 +1,8 @@
 import 'dotenv/config'
 import { prisma } from '../src/lib/prisma'
+import { generateUpcomingTrips } from '../src/jobs/generateTrips'
+
+const TRIPS_TO_ASSIGN = 7
 
 /**
  * Seeds the minimum reference data the app needs to be usable at all:
@@ -88,12 +91,40 @@ async function main() {
     create: { phone: ADMIN_PHONE, name: 'Admin', role: 'admin' },
   })
 
+  // Generate real trips off the schedule, then assign the seeded bus
+  // to the next few so there's something actually bookable the moment
+  // seeding finishes — a bare seed with no assigned bus has trips but
+  // zero seats, which isn't demo-ready (see POST /admin/trips/:id/assign
+  // for why seat generation is deferred to the point a bus is known).
+  await generateUpcomingTrips()
+
+  const upcomingTrips = await prisma.trip.findMany({
+    where: { routeId: route.id, status: 'scheduled', busId: null },
+    orderBy: { departureTime: 'asc' },
+    take: TRIPS_TO_ASSIGN,
+  })
+
+  let assignedCount = 0
+  for (const trip of upcomingTrips) {
+    const existingSeats = await prisma.tripSeat.count({ where: { tripId: trip.id } })
+    await prisma.$transaction(async (tx) => {
+      await tx.trip.update({ where: { id: trip.id }, data: { busId: bus.id, driverId: driver.id } })
+      if (existingSeats === 0) {
+        const seatNumbers = Array.from({ length: bus.capacity }, (_, i) => String(i + 1).padStart(2, '0'))
+        await tx.tripSeat.createMany({
+          data: seatNumbers.map((seatNumber) => ({ tripId: trip.id, seatNumber, class: bus.class })),
+        })
+      }
+    })
+    assignedCount++
+  }
+
   console.log('\nSeed complete.')
   console.log(`  Bus:    ${bus.plate}`)
   console.log(`  Driver: ${driver.name} (${driver.phone})`)
   console.log(`  Admin:  ${admin.phone} — log in via OTP (the code prints to this terminal in dev).`)
-  console.log('\nNext: log in as the admin above, open Admin > Trips, and assign the bus to a generated trip.')
-  console.log('(Trips generate automatically on a nightly cron — or run `npm run generate-trips` to do it now.)')
+  console.log(`  Trips:  ${assignedCount} upcoming trip(s) have the bus assigned and are bookable right now.`)
+  console.log('\nReady to demo: search Ojota Park → Benin Park in the rider app.')
 }
 
 main()
