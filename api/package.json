@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "seed": "tsx prisma/seed.ts",
     "generate-trips": "tsx src/jobs/generateTrips.ts",
     "purge-expired-holds": "tsx src/jobs/purgeExpiredHolds.ts",
     "cancel-unpaid-bookings": "tsx src/jobs/cancelUnpaidBookings.ts",

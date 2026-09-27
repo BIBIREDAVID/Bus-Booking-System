@@ -59,7 +59,38 @@ This applies everything in `prisma/migrations` (including the
 hand-added CHECK constraints noted in `prisma/schema.prisma`) and
 generates the Prisma Client.
 
-## 5. Run both apps
+## 5. Seed reference data
+
+A fresh database has no parks, routes, fares, buses, or admin account
+— nothing to search or book yet. Seed the minimum needed to get going:
+
+```bash
+cd api
+npx prisma db seed
+```
+
+This creates a 3-park route (Lagos → Ibadan → Benin) with fares for
+every board/alight pair, a daily 6:30am schedule, one bus, one driver,
+and an admin account. It's safe to run more than once — it checks for
+existing data first rather than duplicating it.
+
+By default the admin phone is `+2348000000001`; override it by setting
+`SEED_ADMIN_PHONE` in `api/.env` before seeding. There's no real SMS
+provider in dev, so the OTP code to log in as that admin prints to the
+`npm run dev:api` terminal (once it's running — see the next step) as
+a `[sendSms]` line rather than being texted.
+
+Once you can log in as the seeded admin, open **Admin → Trips** and
+assign the seeded bus to a generated trip — that's what actually
+creates bookable seats (see "Trip generation" below for why). Trips
+generate automatically on a nightly cron; to generate them immediately
+instead of waiting:
+
+```bash
+npm run generate-trips
+```
+
+## 6. Run both apps
 
 From the repo root, in two more terminals:
 
