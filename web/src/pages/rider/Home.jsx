@@ -1,23 +1,35 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
-import { health, listBookings } from '../../lib/api'
+import { ApiError, listBookings, listUpcomingTrips } from '../../lib/api'
 import { RatingModal } from './Bookings'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function formatDeparture(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function naira(n) {
+  return `₦${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+}
+
 export default function Home() {
-  const [status, setStatus] = useState('checking...')
+  const navigate = useNavigate()
   const [unratedTrip, setUnratedTrip] = useState(null)
   const [rating, setRating] = useState(false)
 
-  useEffect(() => {
-    health()
-      .then((res) => setStatus(`API says: ${res.status} (${res.time})`))
-      .catch(() => setStatus('Could not reach the API — is it running on :4000?'))
-  }, [])
+  const [rides, setRides] = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     listBookings()
@@ -27,6 +39,20 @@ export default function Home() {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    listUpcomingTrips()
+      .then(({ results }) => setRides(results))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load available rides'))
+  }, [])
+
+  function selectRide(result) {
+    navigate(
+      `/trips/${result.tripId}/seats?board=${result.boardStopId}&alight=${result.alightStopId}` +
+        `&from=${encodeURIComponent(result.originParkName)}&to=${encodeURIComponent(result.destParkName)}` +
+        `&when=${encodeURIComponent(result.departureTime)}&fare=${result.fare ?? ''}`,
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -42,11 +68,44 @@ export default function Home() {
         </Card>
       )}
 
-      <Card>
-        <h2 className="text-xl font-bold text-ink-900">Home</h2>
-        <p className="mt-2 text-sm text-ink-500">Search buses, promotions, and quick actions land here.</p>
-        <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700">{status}</p>
-      </Card>
+      <div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-ink-900">Available Rides</h2>
+          <button type="button" onClick={() => navigate('/search')} className="text-xs font-semibold text-brand-600">
+            Search by route →
+          </button>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-brand-700">{error}</p>}
+
+        {rides === null ? (
+          <p className="mt-4 text-center text-sm text-ink-500">Loading...</p>
+        ) : rides.length === 0 ? (
+          <Card className="mt-3">
+            <p className="text-sm text-ink-500">No upcoming rides are open for booking right now — check back soon.</p>
+          </Card>
+        ) : (
+          <div className="mt-3 flex flex-col gap-3">
+            {rides.map((ride) => (
+              <Card key={ride.tripId} className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">
+                    {ride.originParkName} → {ride.destParkName}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-500">
+                    {formatDeparture(ride.departureTime)}
+                    {ride.bus && ` · ${ride.bus.plate} · ${ride.bus.class}`}
+                  </p>
+                  {ride.fare && <p className="mt-1 text-sm font-bold text-brand-600">{naira(ride.fare)}</p>}
+                </div>
+                <Button radius="lg" className="shrink-0 px-4 py-2 text-xs" onClick={() => selectRide(ride)}>
+                  Select Seats
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       {rating && unratedTrip && (
         <RatingModal

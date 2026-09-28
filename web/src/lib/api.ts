@@ -286,6 +286,12 @@ export function searchTrips(params: { originParkId: string; destParkId: string; 
   return api.get<{ results: SearchResult[] }>(`/search?${qs}`)
 }
 
+// Every bookable trip across every route, soonest first — for
+// browsing without already knowing which two parks to search.
+export function listUpcomingTrips() {
+  return api.get<{ results: SearchResult[] }>('/trips/upcoming')
+}
+
 export interface SeatAvailability {
   id: string
   seatNumber: string
