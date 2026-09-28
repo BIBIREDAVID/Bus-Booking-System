@@ -1,16 +1,21 @@
 import 'dotenv/config'
 import { prisma } from '../src/lib/prisma'
 import { generateUpcomingTrips } from '../src/jobs/generateTrips'
-
-const TRIPS_TO_ASSIGN = 7
+import { bookWithWallet, bookManual } from '../src/lib/bookingTransaction'
+import { refundBookingToWallet } from '../src/lib/refunds'
 
 /**
- * Seeds the minimum reference data the app needs to be usable at all:
- * parks, a route with stops/fares, a recurring schedule, a bus, a
- * driver, and an admin account. Safe to re-run — every step checks
- * for existing data first (parks/routes have no natural unique
- * constraint to upsert against, so this uses find-then-create instead
- * of Prisma's `upsert`).
+ * Seeds everything needed for a full walkthrough demo: reference data
+ * (parks/route/fares/schedule/bus/driver), an admin + park-staff +
+ * three rider accounts, and real bookings in every status so every
+ * screen in the app has something to show immediately — no clicking
+ * through the UI first to generate data.
+ *
+ * Reference-data setup is idempotent (checked by re-running it against
+ * real data — no duplicates). The demo-booking section is guarded by
+ * a single marker check (rider1 already has bookings) so re-running
+ * doesn't pile up duplicate demo bookings — but it's meant to run once
+ * against a fresh install, not repeatedly against a live demo DB.
  *
  * Run with:
  *   cd api
@@ -20,11 +25,34 @@ const TRIPS_TO_ASSIGN = 7
  */
 
 const ADMIN_PHONE = process.env.SEED_ADMIN_PHONE ?? '+2348000000001'
+const ONE_HOUR_MS = 60 * 60 * 1000
+const TRIPS_TO_ASSIGN = 7
 
 async function findOrCreatePark(data: { name: string; city: string; state: string }) {
   const existing = await prisma.park.findFirst({ where: { name: data.name } })
   if (existing) return existing
   return prisma.park.create({ data })
+}
+
+/** Creates a trip on the route with the given bus/driver already assigned and seats generated — mirrors POST /admin/trips/:id/assign. */
+async function createAssignedTrip(
+  routeId: string,
+  busId: string,
+  driverId: string,
+  hoursFromNow: number,
+  capacity: number,
+  seatClass: 'standard' | 'luxury' | 'vip',
+  status: 'scheduled' | 'completed' = 'scheduled',
+) {
+  const departureTime = new Date(Date.now() + hoursFromNow * ONE_HOUR_MS)
+  const trip = await prisma.trip.create({
+    data: { routeId, busId, driverId, departureTime, status },
+  })
+  const seatNumbers = Array.from({ length: capacity }, (_, i) => String(i + 1).padStart(2, '0'))
+  const seats = await Promise.all(
+    seatNumbers.map((seatNumber) => prisma.tripSeat.create({ data: { tripId: trip.id, seatNumber, class: seatClass } })),
+  )
+  return { trip, seats }
 }
 
 async function main() {
@@ -73,16 +101,32 @@ async function main() {
     console.log(`Route ${lagos.name} → ${benin.name} already exists — skipped stops/fares/schedule.`)
   }
 
+  // Origin/destination boarding stops, whether just created above or
+  // already there from a previous run — everything below books the
+  // full route (origin -> destination), so these two are all we need.
+  const stopOrigin = await prisma.routeStop.findFirstOrThrow({ where: { routeId: route.id, parkId: lagos.id } })
+  const stopDest = await prisma.routeStop.findFirstOrThrow({ where: { routeId: route.id, parkId: benin.id } })
+
   const bus = await prisma.bus.upsert({
     where: { plate: 'ABC-101-XY' },
     update: {},
     create: { plate: 'ABC-101-XY', capacity: 32, class: 'standard', status: 'active' },
+  })
+  const luxuryBus = await prisma.bus.upsert({
+    where: { plate: 'ABC-202-LX' },
+    update: {},
+    create: { plate: 'ABC-202-LX', capacity: 20, class: 'luxury', status: 'active' },
   })
 
   const driver = await prisma.driver.upsert({
     where: { phone: '+2348011111111' },
     update: {},
     create: { name: 'Chinedu Okafor', phone: '+2348011111111', licenseNo: 'LIC-0001', status: 'active' },
+  })
+  const luxuryDriver = await prisma.driver.upsert({
+    where: { phone: '+2348011111112' },
+    update: {},
+    create: { name: 'Amaka Nwosu', phone: '+2348011111112', licenseNo: 'LIC-0002', status: 'active' },
   })
 
   const admin = await prisma.user.upsert({
@@ -91,11 +135,30 @@ async function main() {
     create: { phone: ADMIN_PHONE, name: 'Admin', role: 'admin' },
   })
 
+  const staff = await prisma.user.upsert({
+    where: { phone: '+2348033330001' },
+    update: { role: 'park_staff', homeParkId: lagos.id },
+    create: { phone: '+2348033330001', name: 'Counter Staff', role: 'park_staff', homeParkId: lagos.id },
+  })
+
+  async function upsertRider(phone: string, name: string, balance: number) {
+    const user = await prisma.user.upsert({
+      where: { phone },
+      update: {},
+      create: { phone, name, role: 'rider' },
+    })
+    await prisma.$executeRaw`INSERT INTO wallets (user_id, balance) VALUES (${user.id}::uuid, 0) ON CONFLICT (user_id) DO NOTHING`
+    await prisma.wallet.update({ where: { userId: user.id }, data: { balance } })
+    return user
+  }
+
+  const rider1 = await upsertRider('+2348022220001', 'Aisha Bello', 50_000)
+  const rider2 = await upsertRider('+2348022220002', 'Tunde Alabi', 50_000)
+  const rider3 = await upsertRider('+2348022220003', 'Ngozi Eze', 50_000)
+
   // Generate real trips off the schedule, then assign the seeded bus
-  // to the next few so there's something actually bookable the moment
-  // seeding finishes — a bare seed with no assigned bus has trips but
-  // zero seats, which isn't demo-ready (see POST /admin/trips/:id/assign
-  // for why seat generation is deferred to the point a bus is known).
+  // to the next few so there's something browsable in search the
+  // moment seeding finishes, beyond the specific demo bookings below.
   await generateUpcomingTrips()
 
   const upcomingTrips = await prisma.trip.findMany({
@@ -105,26 +168,183 @@ async function main() {
   })
 
   let assignedCount = 0
-  for (const trip of upcomingTrips) {
+  for (const [i, trip] of upcomingTrips.entries()) {
+    const useLuxury = i >= 5 // last couple get the luxury bus, for fare/class variety
+    const tripBus = useLuxury ? luxuryBus : bus
+    const tripDriver = useLuxury ? luxuryDriver : driver
     const existingSeats = await prisma.tripSeat.count({ where: { tripId: trip.id } })
     await prisma.$transaction(async (tx) => {
-      await tx.trip.update({ where: { id: trip.id }, data: { busId: bus.id, driverId: driver.id } })
+      await tx.trip.update({ where: { id: trip.id }, data: { busId: tripBus.id, driverId: tripDriver.id } })
       if (existingSeats === 0) {
-        const seatNumbers = Array.from({ length: bus.capacity }, (_, i) => String(i + 1).padStart(2, '0'))
+        const seatNumbers = Array.from({ length: tripBus.capacity }, (_, i2) => String(i2 + 1).padStart(2, '0'))
         await tx.tripSeat.createMany({
-          data: seatNumbers.map((seatNumber) => ({ tripId: trip.id, seatNumber, class: bus.class })),
+          data: seatNumbers.map((seatNumber) => ({ tripId: trip.id, seatNumber, class: tripBus.class })),
         })
       }
     })
     assignedCount++
   }
 
+  // ------------------------------------------------------------
+  // Demo bookings — one guard for the whole block, since it's not
+  // meaningfully re-runnable (each run would create new trips/
+  // bookings). Skips cleanly if it looks like this already ran.
+  // ------------------------------------------------------------
+  const alreadySeeded = await prisma.booking.findFirst({ where: { userId: rider1.id } })
+
+  if (alreadySeeded) {
+    console.log('\nDemo bookings already exist for Aisha Bello — skipped (not re-runnable).')
+  } else {
+    console.log('\nCreating demo bookings across every status...')
+
+    // 1. Upcoming, paid, >24h out — cancel-with-refund is demoable live.
+    const farTrip = await createAssignedTrip(route.id, bus.id, driver.id, 72, bus.capacity, bus.class)
+    await bookWithWallet({
+      userId: rider1.id,
+      tripId: farTrip.trip.id,
+      seatId: farTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+
+    // 2. Upcoming, paid, <24h out — cancel-no-refund / reschedule-blocked.
+    const soonTrip = await createAssignedTrip(route.id, bus.id, driver.id, 10, bus.capacity, bus.class)
+    await bookWithWallet({
+      userId: rider1.id,
+      tripId: soonTrip.trip.id,
+      seatId: soonTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+
+    // 3. Pending pay-at-park, staff-booked — Staff > Pending Payments demo.
+    const payAtParkTrip = await createAssignedTrip(route.id, bus.id, driver.id, 48, bus.capacity, bus.class)
+    await bookManual({
+      userId: rider2.id,
+      performedBy: staff.id,
+      tripId: payAtParkTrip.trip.id,
+      seatId: payAtParkTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      paymentMethod: 'pay_at_park',
+    })
+
+    // 4. Check-in demo trip: one boarded, one not — Staff > Check-in / Manifest.
+    const checkinTrip = await createAssignedTrip(route.id, bus.id, driver.id, 6, bus.capacity, bus.class)
+    const boardedBooking = await bookWithWallet({
+      userId: rider3.id,
+      tripId: checkinTrip.trip.id,
+      seatId: checkinTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+    await prisma.booking.update({ where: { id: boardedBooking.id }, data: { boardedAt: new Date() } })
+    await bookWithWallet({
+      userId: rider1.id,
+      tripId: checkinTrip.trip.id,
+      seatId: checkinTrip.seats[1].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+
+    // 5. Already cancelled with refund — History tab demo.
+    const cancelTrip = await createAssignedTrip(route.id, bus.id, driver.id, 96, bus.capacity, bus.class)
+    const toCancel = await bookWithWallet({
+      userId: rider1.id,
+      tripId: cancelTrip.trip.id,
+      seatId: cancelTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+    await prisma.booking.update({ where: { id: toCancel.id }, data: { status: 'cancelled' } })
+    await refundBookingToWallet(toCancel)
+
+    // 6. Completed trip in the past — one rated (rider1), one unrated
+    // (rider3, so logging in as rider3 shows the "rate your trip" prompt).
+    const pastTrip = await createAssignedTrip(route.id, bus.id, driver.id, -48, bus.capacity, bus.class, 'completed')
+    const ratedBooking = await bookWithWallet({
+      userId: rider1.id,
+      tripId: pastTrip.trip.id,
+      seatId: pastTrip.seats[0].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+    await prisma.booking.update({ where: { id: ratedBooking.id }, data: { status: 'completed' } })
+    await prisma.bookingRating.create({
+      data: { bookingId: ratedBooking.id, stars: 5, comment: 'Comfortable seats, driver was on time.' },
+    })
+    const unratedBooking = await bookWithWallet({
+      userId: rider3.id,
+      tripId: pastTrip.trip.id,
+      seatId: pastTrip.seats[1].id,
+      boardStopId: stopOrigin.id,
+      alightStopId: stopDest.id,
+      requireValidHold: false,
+    })
+    await prisma.booking.update({ where: { id: unratedBooking.id }, data: { status: 'completed' } })
+
+    console.log('Created 6 demo trips with bookings covering every status.')
+
+    // ------------------------------------------------------------
+    // Complaints, lost & found, support tickets, alerts
+    // ------------------------------------------------------------
+    await prisma.complaint.createMany({
+      data: [
+        { userId: rider1.id, tripId: pastTrip.trip.id, category: 'driver_conduct', message: 'Driver was speeding for most of the trip.', status: 'open' },
+        { userId: rider2.id, category: 'vehicle_condition', message: 'Air conditioning was not working.', status: 'in_review' },
+        {
+          userId: rider3.id,
+          category: 'other',
+          message: 'App kept logging me out mid-booking.',
+          status: 'resolved',
+          resolutionNotes: 'Reproduced and fixed a token-refresh bug — thanks for the report.',
+          assignedTo: admin.id,
+          resolvedAt: new Date(),
+        },
+      ],
+    })
+
+    await prisma.lostFoundItem.createMany({
+      data: [
+        { type: 'lost', tripId: pastTrip.trip.id, description: 'Blue backpack with a laptop inside.', contactInfo: rider1.phone, submittedBy: rider1.id, status: 'open' },
+        { type: 'found', tripId: checkinTrip.trip.id, description: 'Black umbrella left under seat 02.', submittedBy: staff.id, homeParkId: lagos.id, status: 'open' },
+        { type: 'found', description: 'Pair of reading glasses in a red case.', submittedBy: staff.id, homeParkId: lagos.id, status: 'claimed' },
+      ],
+    })
+
+    await prisma.supportTicket.createMany({
+      data: [
+        { userId: rider1.id, category: 'payment', message: 'My wallet top-up has not reflected yet.', status: 'open' },
+        { userId: rider2.id, category: 'booking', message: 'Wrong seat class showed on my ticket.', status: 'resolved' },
+        { userId: rider3.id, category: 'technical', message: 'QR code on my ticket will not scan.', status: 'open' },
+      ],
+    })
+
+    await prisma.tripAlert.createMany({
+      data: [
+        { tripId: soonTrip.trip.id, type: 'delay', message: 'This trip is running 30 minutes behind schedule.', createdBy: admin.id },
+        { routeId: route.id, type: 'holiday_notice', message: 'Reduced departures during the upcoming public holiday.', createdBy: admin.id },
+      ],
+    })
+
+    console.log('Created sample complaints, lost & found items, support tickets, and travel alerts.')
+  }
+
   console.log('\nSeed complete.')
-  console.log(`  Bus:    ${bus.plate}`)
-  console.log(`  Driver: ${driver.name} (${driver.phone})`)
-  console.log(`  Admin:  ${admin.phone} — log in via OTP (the code prints to this terminal in dev).`)
-  console.log(`  Trips:  ${assignedCount} upcoming trip(s) have the bus assigned and are bookable right now.`)
-  console.log('\nReady to demo: search Ojota Park → Benin Park in the rider app.')
+  console.log(`  Buses:   ${bus.plate} (standard), ${luxuryBus.plate} (luxury)`)
+  console.log(`  Drivers: ${driver.name}, ${luxuryDriver.name}`)
+  console.log(`  Admin:   ${admin.phone}`)
+  console.log(`  Staff:   ${staff.phone} (home park: ${lagos.name})`)
+  console.log(`  Riders:  ${rider1.phone} (Aisha), ${rider2.phone} (Tunde), ${rider3.phone} (Ngozi) — ₦50,000 wallet each`)
+  console.log(`  Trips:   ${assignedCount} browsable upcoming trip(s), plus 6 demo trips covering every booking status`)
+  console.log('\nAll logins are OTP-only — codes print to this terminal (as "[sendSms] ...") in dev, no real SMS is sent.')
+  console.log('Ready to demo: search Ojota Park → Benin Park in the rider app, or log in as any account above.')
 }
 
 main()
