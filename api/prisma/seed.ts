@@ -12,10 +12,15 @@ import { refundBookingToWallet } from '../src/lib/refunds'
  * through the UI first to generate data.
  *
  * Reference-data setup is idempotent (checked by re-running it against
- * real data — no duplicates). The demo-booking section is guarded by
- * a single marker check (rider1 already has bookings) so re-running
- * doesn't pile up duplicate demo bookings — but it's meant to run once
- * against a fresh install, not repeatedly against a live demo DB.
+ * real data — no duplicates). The demo-booking section is fully
+ * REFRESHABLE, not just idempotent: every demo trip is tagged by
+ * departing at a time-of-day that doesn't match the recurring
+ * schedule (see DEMO_TRIP_MARKER below), so each run deletes any
+ * previous demo trips/bookings/complaints/etc. and recreates them
+ * relative to *now* — otherwise "upcoming" demo bookings would
+ * silently turn into past ones a day or two after first seeding, and
+ * the whole point of the seed is that it's safe to re-run before a
+ * demo to reset everything to a fresh, correctly-timed state.
  *
  * Run with:
  *   cd api
@@ -186,17 +191,48 @@ async function main() {
   }
 
   // ------------------------------------------------------------
-  // Demo bookings — one guard for the whole block, since it's not
-  // meaningfully re-runnable (each run would create new trips/
-  // bookings). Skips cleanly if it looks like this already ran.
+  // Demo bookings — wiped and recreated relative to *now* every run.
+  // Demo trips are identified by NOT falling on the recurring
+  // schedule's time-of-day (every schedule-generated trip departs at
+  // exactly that hour:minute; every demo trip below uses an
+  // hours-from-now offset that essentially never lands on it).
   // ------------------------------------------------------------
-  const alreadySeeded = await prisma.booking.findFirst({ where: { userId: rider1.id } })
+  const activeSchedule = await prisma.routeSchedule.findFirstOrThrow({ where: { routeId: route.id, active: true } })
+  const scheduleHour = activeSchedule.departureTime.getUTCHours()
+  const scheduleMinute = activeSchedule.departureTime.getUTCMinutes()
 
-  if (alreadySeeded) {
-    console.log('\nDemo bookings already exist for Aisha Bello — skipped (not re-runnable).')
-  } else {
-    console.log('\nCreating demo bookings across every status...')
+  const allRouteTrips = await prisma.trip.findMany({ where: { routeId: route.id }, select: { id: true, departureTime: true } })
+  const demoTripIds = allRouteTrips
+    .filter((t) => t.departureTime.getUTCHours() !== scheduleHour || t.departureTime.getUTCMinutes() !== scheduleMinute)
+    .map((t) => t.id)
+  const demoRiderIds = [rider1.id, rider2.id, rider3.id]
 
+  if (demoTripIds.length > 0) {
+    console.log(`\nClearing ${demoTripIds.length} previous demo trip(s) so they can be recreated relative to now...`)
+  }
+  // Any booking on a trip being wiped must have its wallet_transactions
+  // cleared first, regardless of whose booking it is (onDelete: NoAction
+  // on wallet_transactions.booking_id) — this route has accumulated
+  // other ad-hoc test bookings from earlier manual testing that also
+  // happen to fall outside the schedule's time-of-day.
+  const tripBookingIds = (await prisma.booking.findMany({ where: { tripId: { in: demoTripIds } }, select: { id: true } })).map(
+    (b) => b.id,
+  )
+  await prisma.walletTransaction.deleteMany({ where: { OR: [{ userId: { in: demoRiderIds } }, { bookingId: { in: tripBookingIds } }] } })
+  await prisma.paymentIntent.deleteMany({ where: { OR: [{ userId: { in: demoRiderIds } }, { bookingId: { in: tripBookingIds } }] } })
+  await prisma.complaint.deleteMany({ where: { userId: { in: demoRiderIds } } })
+  await prisma.lostFoundItem.deleteMany({ where: { submittedBy: { in: [...demoRiderIds, staff.id] } } })
+  await prisma.supportTicket.deleteMany({ where: { userId: { in: demoRiderIds } } })
+  await prisma.tripAlert.deleteMany({ where: { createdBy: admin.id } })
+  await prisma.booking.deleteMany({ where: { tripId: { in: demoTripIds } } }) // cascades booking_ratings
+  await prisma.tripSeat.deleteMany({ where: { tripId: { in: demoTripIds } } })
+  await prisma.trip.deleteMany({ where: { id: { in: demoTripIds } } })
+  // Demo riders are dedicated seed accounts — reset to a clean starting balance each run.
+  await prisma.wallet.updateMany({ where: { userId: { in: demoRiderIds } }, data: { balance: 50_000 } })
+
+  console.log('Creating demo bookings across every status...')
+
+  {
     // 1. Upcoming, paid, >24h out — cancel-with-refund is demoable live.
     const farTrip = await createAssignedTrip(route.id, bus.id, driver.id, 72, bus.capacity, bus.class)
     await bookWithWallet({
