@@ -23,24 +23,43 @@ In dev, OTP codes are not texted anywhere — they print to the API terminal as
 |---|---|---|
 | Admin | Admin | `+2348000000001` (override with `SEED_ADMIN_PHONE` env var) |
 | Park Staff | Counter Staff | `+2348033330001` (home park: Ojota Park, Lagos) |
+| Park Staff | Abuja Counter Staff | `+2348033330002` (home park: Utako Park, Abuja) |
 | Rider | Aisha Bello | `+2348022220001` |
 | Rider | Tunde Alabi | `+2348022220002` |
 | Rider | Ngozi Eze | `+2348022220003` |
 
-All three riders start with a ₦50,000 wallet balance every time the seed runs.
+All three riders start with a ₦50,000 wallet balance every time the seed runs. Each
+also gets 1–2 saved passengers (for the "book for someone else" flow).
 
-## Route and fleet
+## Parks (7)
 
-- Route: **Ojota Park (Lagos) → Challenge Park (Ibadan) → Benin Park (Benin City)**
-- Daily departure at 06:30 (nightly job auto-generates real trips ~30 days out)
-- Buses: `ABC-101-XY` (standard, 32 seats), `ABC-202-LX` (luxury, 20 seats)
-- Drivers: Chinedu Okafor (standard bus), Amaka Nwosu (luxury bus)
-- Fares (Lagos → Benin, full route): ₦8,000 standard / ₦11,000 luxury / ₦14,000 VIP
-- The seed auto-assigns a bus+driver to the next 7 scheduled trips so Search/Home
-  shows real browsable rides immediately — no manual admin step needed for those.
-  Any trip beyond those 7 still needs a bus assigned manually in Admin > Trips.
+Ojota Park (Lagos), Challenge Park (Ibadan), Benin Park (Benin City), Utako Park
+(Abuja), Waterlines Park (Port Harcourt), Sabon Gari Park (Kano), Holy Ghost Park
+(Enugu).
 
-## The 6 demo trips (recreated relative to "now" every seed run)
+## Routes (6) and fleet
+
+| Route | Stops | Daily departure | Fare (standard / luxury / vip) |
+|---|---|---|---|
+| Lagos → Ibadan → Benin (flagship) | 3 | 06:30 | ₦8,000 / ₦11,000 / ₦14,000 (full route) |
+| Lagos → Abuja | 2 | 07:00 | ₦12,000 / ₦16,000 / ₦20,000 |
+| Lagos → Benin → Port Harcourt | 3 | 08:00 | ₦11,500 / ₦16,000 / ₦20,500 (full route) |
+| Ibadan → Abuja | 2 | 06:00 | ₦9,000 / ₦13,000 / ₦16,000 |
+| Lagos → Kano | 2 | 20:00 (overnight) | ₦15,000 / ₦20,000 / ₦25,000 |
+| Benin → Enugu | 2 | 09:00 | ₦3,000 / ₦4,500 / ₦6,000 |
+
+Every route has fares for every valid (board, alight) pair, not just the full route
+— e.g. Lagos → Ibadan alone is ₦4,500/₦6,500/₦8,500 on the flagship route.
+
+Fleet: 5 buses across all 3 classes (`ABC-101-XY`, `DEF-303-ST` standard;
+`ABC-202-LX`, `DEF-404-LX` luxury; `GHI-505-VP` vip) and 5 drivers, distributed
+across the 6 routes. The seed auto-assigns a bus+driver to several upcoming trips
+per route (7 on the flagship route, 4 on each of the other five) so Search/Home
+shows real browsable rides on every corridor immediately — no manual admin step
+needed for those. Trips beyond that still need a bus assigned manually in Admin >
+Trips.
+
+## The 6 demo trips (flagship route only, recreated relative to "now" every seed run)
 
 | # | Offset from now | Status | Who booked | What it demonstrates |
 |---|---|---|---|---|
@@ -70,7 +89,9 @@ Plus one route-wide "holiday_notice" trip alert.
 3. Log in as **Counter Staff** (`+2348033330001`) → Pending Payments shows Tunde's
    pay-at-park booking; Check-in shows trip #4's manifest.
 4. Log in as **Admin** (`+2348000000001`) → Reports, trip alerts, complaint/ticket
-   resolution.
+   resolution, and six routes' worth of trips/fleet to manage.
+5. Search **Lagos → Kano** or **Benin → Enugu** (or any other seeded pair) to show
+   the network isn't just one corridor.
 
 ## New-PC setup
 
