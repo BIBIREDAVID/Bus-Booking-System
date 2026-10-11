@@ -16,7 +16,7 @@ export default function Splash() {
   useEffect(() => {
     if (loading) return
     const timer = setTimeout(() => {
-      navigate(user ? HOME_BY_ROLE[user.role] : '/login', { replace: true })
+      navigate(user ? HOME_BY_ROLE[user.role] : '/', { replace: true })
     }, 900)
     return () => clearTimeout(timer)
   }, [loading, user, navigate])

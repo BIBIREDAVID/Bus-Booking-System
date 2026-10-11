@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import OnboardingScreen from '../../components/OnboardingScreen'
 import Button from '../../components/Button'
 import { login, ApiError } from '../../lib/api'
@@ -19,9 +19,13 @@ const HOME_BY_ROLE = {
   admin: '/admin',
 }
 
-export default function Login() {
+/**
+ * Rendered directly at a role's own URL (/, /staff, /driver, /admin)
+ * by RequireRole when that route is visited logged out — not a
+ * separate discoverable "choose your role" page. `role` is required.
+ */
+export default function Login({ role: roleParam }) {
   const navigate = useNavigate()
-  const { role: roleParam } = useParams()
   const { completeLogin } = useAuth()
   const meta = ROLE_META[roleParam] ?? ROLE_META.rider
 
@@ -56,7 +60,7 @@ export default function Login() {
   }
 
   return (
-    <OnboardingScreen title={meta.title} subtitle="Sign in with your email and password." onBack={() => navigate('/login')}>
+    <OnboardingScreen title={meta.title} subtitle="Sign in with your email and password." onBack={false}>
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-3">
         <input
           type="email"

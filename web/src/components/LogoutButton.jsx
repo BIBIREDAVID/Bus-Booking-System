@@ -7,7 +7,7 @@ export default function LogoutButton() {
 
   async function handleLogout() {
     await logout()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (

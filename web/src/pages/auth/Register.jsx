@@ -37,7 +37,7 @@ export default function Register() {
   }
 
   return (
-    <OnboardingScreen title="Create Your Account" subtitle="Book trips, manage your wallet, and track every ride." onBack={() => navigate('/login')}>
+    <OnboardingScreen title="Create Your Account" subtitle="Book trips, manage your wallet, and track every ride." onBack={() => navigate('/')}>
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-3">
         <input
           type="text"
@@ -84,7 +84,7 @@ export default function Register() {
           </Button>
           <p className="mt-4 text-center text-sm text-ink-500">
             Already have an account?{' '}
-            <button type="button" onClick={() => navigate('/login/rider')} className="font-semibold text-brand-600">
+            <button type="button" onClick={() => navigate('/')} className="font-semibold text-brand-600">
               Sign in
             </button>
           </p>

@@ -38,7 +38,7 @@ const QUICK_LINKS = [
   { to: '/admin/complaints', icon: MessageSquareWarning, label: 'Complaints', description: 'Triage open cases' },
   { to: '/admin/support', icon: LifeBuoy, label: 'Support Tickets', description: 'Answer rider issues' },
   { to: '/admin/alerts', icon: Megaphone, label: 'Travel Alerts', description: 'Post delay/route notices' },
-  { to: '/admin/promote', icon: UserPlus, label: 'Promote User', description: 'Grant staff/admin access' },
+  { to: '/admin/team', icon: UserPlus, label: 'Team Members', description: 'Create staff/driver/admin logins' },
 ]
 
 export default function Overview() {

@@ -1,9 +1,7 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import RequireRole from './components/RequireRole'
 
 import Splash from './pages/onboarding/Splash'
-import RoleSelect from './pages/auth/RoleSelect'
-import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 
 import RiderLayout from './pages/rider/RiderLayout'
@@ -50,13 +48,14 @@ function App() {
     <Routes>
       <Route path="/splash" element={<Splash />} />
 
-      {/* Email + password auth */}
-      <Route path="/login" element={<RoleSelect />} />
-      <Route path="/login/:role" element={<Login />} />
+      {/* Rider login lives at the app's own root — not a discoverable
+          role picker. Staff/Driver/Admin each sign in directly at
+          their own URL instead (see below). */}
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/register" element={<Register />} />
 
       {/* Rider app */}
-      <Route element={<RequireRole roles={['rider']} />}>
+      <Route element={<RequireRole roles={['rider']} loginRole="rider" />}>
         <Route element={<RiderLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
@@ -74,7 +73,7 @@ function App() {
       </Route>
 
       {/* Park staff dashboard */}
-      <Route element={<RequireRole roles={['park_staff']} />}>
+      <Route element={<RequireRole roles={['park_staff']} loginRole="staff" />}>
         <Route element={<StaffLayout />}>
           <Route path="/staff" element={<Manifest />} />
           <Route path="/staff/bookings" element={<ManualBooking />} />
@@ -85,7 +84,7 @@ function App() {
       </Route>
 
       {/* Driver portal */}
-      <Route element={<RequireRole roles={['driver']} />}>
+      <Route element={<RequireRole roles={['driver']} loginRole="driver" />}>
         <Route element={<DriverLayout />}>
           <Route path="/driver" element={<DriverTrips />} />
           <Route path="/driver/trips/:tripId/manifest" element={<DriverManifest />} />
@@ -93,7 +92,7 @@ function App() {
       </Route>
 
       {/* Admin dashboard */}
-      <Route element={<RequireRole roles={['admin']} />}>
+      <Route element={<RequireRole roles={['admin']} loginRole="admin" />}>
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<Overview />} />
           <Route path="/admin/routes" element={<RoutesPage />} />
