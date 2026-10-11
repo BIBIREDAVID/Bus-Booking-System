@@ -14,7 +14,7 @@ function serialize(t: {
   message: string
   status: string
   createdAt: Date
-  user: { phone: string; name: string | null }
+  user: { phone: string | null; name: string | null }
 }) {
   return {
     id: t.id,

@@ -10,6 +10,7 @@ import { parksRouter } from './routes/parks'
 import { walletRouter } from './routes/wallet'
 import { paymentsWebhookRouter } from './routes/paymentsWebhook'
 import { staffRouter } from './routes/staff'
+import { driverRouter } from './routes/driver'
 import { alertsRouter } from './routes/alerts'
 import { complaintsRouter } from './routes/complaints'
 import { lostFoundRouter } from './routes/lostFound'
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/parks', parksRouter)
   app.use('/wallet', walletRouter)
   app.use('/staff', staffRouter)
+  app.use('/driver', driverRouter)
   app.use('/alerts', alertsRouter)
   app.use('/complaints', complaintsRouter)
   app.use('/lost-found', lostFoundRouter)

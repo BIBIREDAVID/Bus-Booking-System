@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '../src/lib/prisma'
 import { holdSeat, SeatConflictError } from '../src/lib/holdSeat'
+import { testUserCreds } from './helpers/testUser'
 
 /**
  * Integration tests against a real Postgres database (whatever
@@ -55,7 +56,7 @@ beforeAll(async () => {
   const bus = await prisma.bus.create({ data: { plate: `TEST-HOLD-${Date.now()}`, capacity: 1, class: 'standard' } })
   busId = bus.id
 
-  const user = await prisma.user.create({ data: { phone: `+1555${Date.now()}`.slice(0, 15), role: 'rider' } })
+  const user = await prisma.user.create({ data: { phone: `+1555${Date.now()}`.slice(0, 15), role: 'rider', ...testUserCreds() } })
   userId = user.id
 })
 

@@ -3,6 +3,7 @@ import { prisma } from '../src/lib/prisma'
 import { generateUpcomingTrips } from '../src/jobs/generateTrips'
 import { bookWithWallet, bookManual } from '../src/lib/bookingTransaction'
 import { refundBookingToWallet } from '../src/lib/refunds'
+import { hashPassword } from '../src/lib/password'
 import type { Park, Route, Bus, Driver } from '@prisma/client'
 
 /**
@@ -30,9 +31,14 @@ import type { Park, Route, Bus, Driver } from '@prisma/client'
  * (or `npx tsx prisma/seed.ts` directly, same effect)
  */
 
-const ADMIN_PHONE = process.env.SEED_ADMIN_PHONE ?? '+2348000000001'
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'admin@bookmybus.dev'
 const ONE_HOUR_MS = 60 * 60 * 1000
 const TRIPS_TO_ASSIGN_PER_ROUTE = 4
+
+// One shared password for every seeded demo account — email+password
+// login replaced phone+OTP, so this is what you type on every login
+// page in the demo (see DEMO_GUIDE.md).
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'Passw0rd!'
 
 async function findOrCreatePark(data: { name: string; city: string; state: string }) {
   const existing = await prisma.park.findFirst({ where: { name: data.name } })
@@ -292,39 +298,68 @@ async function main() {
   const stopDest = await prisma.routeStop.findFirstOrThrow({ where: { routeId: mainRoute.id, parkId: benin.id } })
 
   // ------------------------------------------------------------
-  // Accounts
+  // Accounts — email + password login. Every seeded account shares
+  // DEMO_PASSWORD so the demo only needs one password to remember.
   // ------------------------------------------------------------
+  const demoPasswordHash = await hashPassword(DEMO_PASSWORD)
+
   const admin = await prisma.user.upsert({
-    where: { phone: ADMIN_PHONE },
+    where: { email: ADMIN_EMAIL },
     update: { role: 'admin' },
-    create: { phone: ADMIN_PHONE, name: 'Admin', role: 'admin' },
+    create: { email: ADMIN_EMAIL, passwordHash: demoPasswordHash, phone: '+2348000000001', name: 'Admin', role: 'admin' },
   })
 
   const staff = await prisma.user.upsert({
-    where: { phone: '+2348033330001' },
+    where: { email: 'staff.lagos@bookmybus.dev' },
     update: { role: 'park_staff', homeParkId: lagos.id },
-    create: { phone: '+2348033330001', name: 'Counter Staff', role: 'park_staff', homeParkId: lagos.id },
+    create: {
+      email: 'staff.lagos@bookmybus.dev',
+      passwordHash: demoPasswordHash,
+      phone: '+2348033330001',
+      name: 'Counter Staff',
+      role: 'park_staff',
+      homeParkId: lagos.id,
+    },
   })
   const abujaStaff = await prisma.user.upsert({
-    where: { phone: '+2348033330002' },
+    where: { email: 'staff.abuja@bookmybus.dev' },
     update: { role: 'park_staff', homeParkId: abuja.id },
-    create: { phone: '+2348033330002', name: 'Abuja Counter Staff', role: 'park_staff', homeParkId: abuja.id },
+    create: {
+      email: 'staff.abuja@bookmybus.dev',
+      passwordHash: demoPasswordHash,
+      phone: '+2348033330002',
+      name: 'Abuja Counter Staff',
+      role: 'park_staff',
+      homeParkId: abuja.id,
+    },
   })
 
-  async function upsertRider(phone: string, name: string, balance: number) {
+  async function upsertRider(email: string, phone: string, name: string, balance: number) {
     const user = await prisma.user.upsert({
-      where: { phone },
+      where: { email },
       update: {},
-      create: { phone, name, role: 'rider' },
+      create: { email, passwordHash: demoPasswordHash, phone, name, role: 'rider' },
     })
     await prisma.$executeRaw`INSERT INTO wallets (user_id, balance) VALUES (${user.id}::uuid, 0) ON CONFLICT (user_id) DO NOTHING`
     await prisma.wallet.update({ where: { userId: user.id }, data: { balance } })
     return user
   }
 
-  const rider1 = await upsertRider('+2348022220001', 'Aisha Bello', 50_000)
-  const rider2 = await upsertRider('+2348022220002', 'Tunde Alabi', 50_000)
-  const rider3 = await upsertRider('+2348022220003', 'Ngozi Eze', 50_000)
+  const rider1 = await upsertRider('aisha@bookmybus.dev', '+2348022220001', 'Aisha Bello', 50_000)
+  const rider2 = await upsertRider('tunde@bookmybus.dev', '+2348022220002', 'Tunde Alabi', 50_000)
+  const rider3 = await upsertRider('ngozi@bookmybus.dev', '+2348022220003', 'Ngozi Eze', 50_000)
+
+  // One driver login, so the driver portal has something to demo too —
+  // the other four drivers stay fleet-only (no login), which is also
+  // worth demoing (Fleet & Drivers shows "Login: —" for them).
+  const driverUser = await prisma.user.upsert({
+    where: { email: 'driver.chinedu@bookmybus.dev' },
+    update: { role: 'driver' },
+    create: { email: 'driver.chinedu@bookmybus.dev', passwordHash: demoPasswordHash, name: driver.name, role: 'driver' },
+  })
+  if (driver.userId !== driverUser.id) {
+    await prisma.driver.update({ where: { id: driver.id }, data: { userId: driverUser.id } })
+  }
 
   // A couple of saved passengers per rider, for the "book for someone
   // else" flow — otherwise this table stays empty until a rider fills
@@ -569,12 +604,13 @@ async function main() {
     `  Routes:  Lagos→Ibadan→Benin, Lagos→Abuja, Lagos→Benin→Port Harcourt, Ibadan→Abuja, Lagos→Kano, Benin→Enugu`,
   )
   console.log(`  Buses:   ${bus.plate} / ${standardBus2.plate} (standard), ${luxuryBus.plate} / ${luxuryBus2.plate} (luxury), ${vipBus.plate} (vip)`)
-  console.log(`  Drivers: ${driver.name}, ${luxuryDriver.name}, ${driver2.name}, ${luxuryDriver2.name}, ${vipDriver.name}`)
-  console.log(`  Admin:   ${admin.phone}`)
-  console.log(`  Staff:   ${staff.phone} (home park: ${lagos.name}), ${abujaStaff.phone} (home park: ${abuja.name})`)
-  console.log(`  Riders:  ${rider1.phone} (Aisha), ${rider2.phone} (Tunde), ${rider3.phone} (Ngozi) — ₦50,000 wallet each`)
+  console.log(`  Drivers: ${driver.name} (has login), ${luxuryDriver.name}, ${driver2.name}, ${luxuryDriver2.name}, ${vipDriver.name}`)
+  console.log(`  Admin:   ${admin.email}`)
+  console.log(`  Staff:   ${staff.email} (home park: ${lagos.name}), ${abujaStaff.email} (home park: ${abuja.name})`)
+  console.log(`  Driver:  ${driverUser.email}`)
+  console.log(`  Riders:  ${rider1.email} (Aisha), ${rider2.email} (Tunde), ${rider3.email} (Ngozi) — ₦50,000 wallet each`)
   console.log(`  Trips:   ${totalAssigned} browsable upcoming trip(s) across 6 routes, plus 6 demo trips covering every booking status`)
-  console.log('\nAll logins are OTP-only — codes print to this terminal (as "[sendSms] ...") in dev, no real SMS is sent.')
+  console.log(`\nAll accounts share one password: ${DEMO_PASSWORD}`)
   console.log('Ready to demo: search Ojota Park → Benin Park in the rider app, or log in as any account above.')
 }
 

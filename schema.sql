@@ -17,7 +17,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- for gen_random_uuid()
 -- ENUMS
 -- ------------------------------------------------------------
 
-CREATE TYPE user_role AS ENUM ('rider', 'park_staff', 'admin');
+CREATE TYPE user_role AS ENUM ('rider', 'park_staff', 'driver', 'admin');
 CREATE TYPE seat_class AS ENUM ('standard', 'luxury', 'vip');
 CREATE TYPE bus_status AS ENUM ('active', 'maintenance');
 CREATE TYPE driver_status AS ENUM ('active', 'inactive');
@@ -55,15 +55,6 @@ CREATE TABLE buses (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE drivers (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        TEXT NOT NULL,
-    phone       TEXT NOT NULL UNIQUE,
-    license_no  TEXT NOT NULL UNIQUE,
-    status      driver_status NOT NULL DEFAULT 'active',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 -- ------------------------------------------------------------
 -- USERS / AUTH
 -- ------------------------------------------------------------
@@ -71,8 +62,9 @@ CREATE TABLE drivers (
 CREATE TABLE users (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name                TEXT,
-    phone               TEXT NOT NULL UNIQUE,
-    email               TEXT,
+    email               TEXT NOT NULL UNIQUE,
+    password_hash       TEXT NOT NULL,
+    phone               TEXT UNIQUE, -- optional contact info; no longer the login credential
     role                user_role NOT NULL DEFAULT 'rider',
     home_park_id        UUID REFERENCES parks(id), -- park_staff only
     preferred_language  TEXT DEFAULT 'en',
@@ -80,6 +72,19 @@ CREATE TABLE users (
     CONSTRAINT staff_has_home_park CHECK (
         role <> 'park_staff' OR home_park_id IS NOT NULL
     )
+);
+
+-- drivers.user_id is nullable: a driver is fleet/reference data on its
+-- own (assignable to trips) regardless of whether that person has app
+-- login access. Set only once an admin creates a login for them.
+CREATE TABLE drivers (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    phone       TEXT NOT NULL UNIQUE,
+    license_no  TEXT NOT NULL UNIQUE,
+    status      driver_status NOT NULL DEFAULT 'active',
+    user_id     UUID UNIQUE REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE saved_passengers (

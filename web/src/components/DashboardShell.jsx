@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 const ROLE_LABEL = {
   admin: 'Administrator',
   park_staff: 'Park Staff',
+  driver: 'Driver',
   rider: 'Rider',
 }
 
@@ -64,10 +65,10 @@ function SidebarContent({ brandLabel, sections, onNavigate }) {
       <div className="border-t border-brand-100 p-3">
         <div className="flex items-center gap-3 rounded-xl bg-brand-50/70 p-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
-            {(user?.name ?? user?.phone ?? '?').trim().charAt(0).toUpperCase()}
+            {(user?.name ?? user?.email ?? '?').trim().charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-xs font-bold text-ink-900">{user?.name ?? user?.phone ?? 'Account'}</p>
+            <p className="truncate text-xs font-bold text-ink-900">{user?.name ?? user?.email ?? 'Account'}</p>
             <p className="truncate text-[11px] text-ink-500">{ROLE_LABEL[user?.role] ?? user?.role}</p>
           </div>
           <button
@@ -89,8 +90,10 @@ export default function DashboardShell({ brandLabel, title, sections }) {
 
   return (
     <div className="flex min-h-screen bg-brand-50">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-brand-100 bg-white sm:flex">
+      {/* Desktop sidebar — sticky to the viewport so only its own nav
+          scrolls (via SidebarContent's overflow-y-auto), independent
+          of how tall the main content column grows. */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-brand-100 bg-white sm:flex">
         <SidebarContent brandLabel={brandLabel} sections={sections} />
       </aside>
 

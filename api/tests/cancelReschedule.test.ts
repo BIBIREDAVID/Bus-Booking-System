@@ -5,6 +5,7 @@ import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { signAccessToken } from '../src/lib/jwt'
 import { bookWithWallet } from '../src/lib/bookingTransaction'
+import { testUserCreds } from './helpers/testUser'
 
 /**
  * Integration tests against a real Postgres database (same DB used for
@@ -88,11 +89,11 @@ beforeAll(async () => {
   const bus = await prisma.bus.create({ data: { plate: `TEST-CR-${Date.now()}`, capacity: 4, class: 'standard' } })
   busId = bus.id
 
-  const user = await prisma.user.create({ data: { phone: `+1556${Date.now()}`.slice(0, 15), role: 'rider' } })
+  const user = await prisma.user.create({ data: { phone: `+1556${Date.now()}`.slice(0, 15), role: 'rider', ...testUserCreds() } })
   userId = user.id
   authHeader = `Bearer ${signAccessToken({ sub: user.id, role: 'rider', homeParkId: null })}`
 
-  const other = await prisma.user.create({ data: { phone: `+1557${Date.now()}`.slice(0, 15), role: 'rider' } })
+  const other = await prisma.user.create({ data: { phone: `+1557${Date.now()}`.slice(0, 15), role: 'rider', ...testUserCreds() } })
   otherUserId = other.id
 })
 

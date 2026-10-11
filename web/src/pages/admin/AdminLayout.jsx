@@ -45,7 +45,7 @@ const sections = [
   },
   {
     label: 'Admin',
-    items: [{ to: '/admin/promote', icon: UserPlus, label: 'Promote User' }],
+    items: [{ to: '/admin/team', icon: UserPlus, label: 'Team Members' }],
   },
 ]
 

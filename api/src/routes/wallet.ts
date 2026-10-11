@@ -31,7 +31,7 @@ walletRouter.post('/topup/initiate', async (req, res) => {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } })
   const { reference, checkoutUrl } = await initializeGatewayPayment(provider, {
     amountNaira: amount,
-    email: user.email ?? `${user.phone.replace('+', '')}@bookmybus.local`,
+    email: user.email,
   })
 
   await prisma.paymentIntent.create({

@@ -16,7 +16,7 @@ function serialize(c: {
   resolutionNotes: string | null
   createdAt: Date
   resolvedAt: Date | null
-  user: { phone: string; name: string | null }
+  user: { phone: string | null; name: string | null }
   trip: { departureTime: Date; route: { originPark: { name: string }; destPark: { name: string } } } | null
 }) {
   return {

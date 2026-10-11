@@ -9,11 +9,11 @@ import { sendEmail } from './email'
  * real provider can be plugged into those two functions later without
  * touching any call site here.
  */
-async function notifyUser(user: { phone: string; email: string | null }, subject: string, message: string) {
-  await sendSms(user.phone, message).catch((err) => console.error('[notifications] sendSms failed', err))
-  if (user.email) {
-    await sendEmail(user.email, subject, message).catch((err) => console.error('[notifications] sendEmail failed', err))
+async function notifyUser(user: { phone: string | null; email: string }, subject: string, message: string) {
+  if (user.phone) {
+    await sendSms(user.phone, message).catch((err) => console.error('[notifications] sendSms failed', err))
   }
+  await sendEmail(user.email, subject, message).catch((err) => console.error('[notifications] sendEmail failed', err))
 }
 
 function formatWhen(iso: Date) {

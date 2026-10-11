@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/AuthContext'
 const HOME_BY_ROLE = {
   rider: '/',
   park_staff: '/staff',
+  driver: '/driver',
   admin: '/admin',
 }
 
@@ -15,7 +16,7 @@ export default function Splash() {
   useEffect(() => {
     if (loading) return
     const timer = setTimeout(() => {
-      navigate(user ? HOME_BY_ROLE[user.role] : '/onboarding', { replace: true })
+      navigate(user ? HOME_BY_ROLE[user.role] : '/login', { replace: true })
     }, 900)
     return () => clearTimeout(timer)
   }, [loading, user, navigate])

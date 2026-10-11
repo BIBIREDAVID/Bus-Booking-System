@@ -20,7 +20,7 @@ function serialize(booking: {
   id: string
   status: string
   boardedAt: Date | null
-  user: { phone: string; name: string | null }
+  user: { phone: string | null; name: string | null }
   seat: { seatNumber: string }
   boardStop: { park: { name: string } }
   alightStop: { park: { name: string } }

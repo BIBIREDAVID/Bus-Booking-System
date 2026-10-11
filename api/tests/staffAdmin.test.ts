@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createApp } from '../src/app'
 import { prisma } from '../src/lib/prisma'
 import { signAccessToken } from '../src/lib/jwt'
+import { testUserCreds } from './helpers/testUser'
 
 /**
  * Integration tests against a real Postgres database (same DB used for
@@ -85,23 +86,23 @@ beforeAll(async () => {
   const bus = await prisma.bus.create({ data: { plate: `TEST-SA-${Date.now()}`, capacity: 4, class: 'standard' } })
   busId = bus.id
 
-  const admin = await prisma.user.create({ data: { phone: `+1560${Date.now()}`.slice(0, 15), role: 'admin' } })
+  const admin = await prisma.user.create({ data: { phone: `+1560${Date.now()}`.slice(0, 15), role: 'admin', ...testUserCreds() } })
   adminUserId = admin.id
   adminAuth = `Bearer ${signAccessToken({ sub: admin.id, role: 'admin', homeParkId: null })}`
 
   const staffHome = await prisma.user.create({
-    data: { phone: `+1561${Date.now()}`.slice(0, 15), role: 'park_staff', homeParkId: parkOrigin.id },
+    data: { phone: `+1561${Date.now()}`.slice(0, 15), role: 'park_staff', homeParkId: parkOrigin.id, ...testUserCreds() },
   })
   staffHomeId = staffHome.id
   staffHomeAuth = `Bearer ${signAccessToken({ sub: staffHome.id, role: 'park_staff', homeParkId: parkOrigin.id })}`
 
   const staffOther = await prisma.user.create({
-    data: { phone: `+1562${Date.now()}`.slice(0, 15), role: 'park_staff', homeParkId: parkElsewhere.id },
+    data: { phone: `+1562${Date.now()}`.slice(0, 15), role: 'park_staff', homeParkId: parkElsewhere.id, ...testUserCreds() },
   })
   staffOtherId = staffOther.id
   staffOtherAuth = `Bearer ${signAccessToken({ sub: staffOther.id, role: 'park_staff', homeParkId: parkElsewhere.id })}`
 
-  const rider = await prisma.user.create({ data: { phone: `+1563${Date.now()}`.slice(0, 15), role: 'rider' } })
+  const rider = await prisma.user.create({ data: { phone: `+1563${Date.now()}`.slice(0, 15), role: 'rider', ...testUserCreds() } })
   riderUserId = rider.id
 
   allTestUserIds = [adminUserId, staffHomeId, staffOtherId, riderUserId]

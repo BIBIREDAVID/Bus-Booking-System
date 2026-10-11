@@ -61,30 +61,32 @@ generates the Prisma Client.
 
 ## 5. Seed reference data
 
-A fresh database has no parks, routes, fares, buses, or admin account
-— nothing to search or book yet. Seed the minimum needed to get going:
+A fresh database has no parks, routes, fares, buses, or accounts —
+nothing to search or book yet. Seed everything needed to get going:
 
 ```bash
 cd api
 npx prisma db seed
 ```
 
-This creates a 3-park route (Lagos → Ibadan → Benin) with fares for
-every board/alight pair, a daily 6:30am schedule, one bus, one driver,
-and an admin account. It's safe to run more than once — it checks for
-existing data first rather than duplicating it.
+This creates a 7-park, 6-route network with a 5-bus fleet, an admin
+account, two park-staff accounts, a driver login, and three rider
+accounts, all pre-loaded with bookings covering every status. It's
+safe to run more than once — reference data is checked for first
+rather than duplicated, and demo bookings reset relative to *now*
+each time. Full account list, routes and fares:
+[DEMO_GUIDE.md](DEMO_GUIDE.md).
 
-By default the admin phone is `+2348000000001`; override it by setting
-`SEED_ADMIN_PHONE` in `api/.env` before seeding. There's no real SMS
-provider in dev, so the OTP code to log in as that admin prints to the
-`npm run dev:api` terminal (once it's running — see the next step) as
-a `[sendSms]` line rather than being texted.
+Login is email + password, not phone/OTP — every seeded account shares
+one password (`Passw0rd!` by default, override with `SEED_DEMO_PASSWORD`
+before seeding). Override the seeded admin's email with `SEED_ADMIN_EMAIL`.
+Go to `/login`, pick a role, and sign in with any email from
+DEMO_GUIDE.md.
 
-Once you can log in as the seeded admin, open **Admin → Trips** and
-assign the seeded bus to a generated trip — that's what actually
-creates bookable seats (see "Trip generation" below for why). Trips
-generate automatically on a nightly cron; to generate them immediately
-instead of waiting:
+The seed also auto-assigns buses to a batch of upcoming trips per
+route — that's what actually creates bookable seats (see "Trip
+generation" below for why). Trips generate automatically on a nightly
+cron; to generate more immediately instead of waiting:
 
 ```bash
 npm run generate-trips

@@ -76,13 +76,14 @@ demo bookings relative to *now*). This creates:
 
 - 7 parks and 6 routes (not just one corridor) — see
   [DEMO_GUIDE.md](DEMO_GUIDE.md) for the full account list, route map and fares.
-- An admin, two park-staff accounts, and three rider accounts, pre-loaded
-  with bookings covering every status (upcoming, pay-at-park pending,
-  checked-in, cancelled+refunded, completed+rated, completed+unrated).
+- An admin, two park-staff accounts, a driver login, and three rider
+  accounts, pre-loaded with bookings covering every status (upcoming,
+  pay-at-park pending, checked-in, cancelled+refunded, completed+rated,
+  completed+unrated).
 
-There's no real SMS provider in dev — OTP codes print to the `npm run dev:api`
-terminal as `[sendSms] ...` lines instead of being texted. Log in with any
-phone number from DEMO_GUIDE.md and read the code from that terminal.
+Login is email + password — every seeded account shares one password
+(`Passw0rd!` by default; see DEMO_GUIDE.md). Go to `/login`, pick the role,
+and sign in with any email from DEMO_GUIDE.md.
 
 ## 7. Run both apps
 

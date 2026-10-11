@@ -153,7 +153,7 @@ bookingsRouter.post('/top-up-and-pay', async (req, res) => {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } })
     const { reference, checkoutUrl } = await initializeGatewayPayment(parsed.data.provider, {
       amountNaira: shortfall,
-      email: user.email ?? `${user.phone.replace('+', '')}@bookmybus.local`,
+      email: user.email,
     })
 
     await prisma.paymentIntent.create({

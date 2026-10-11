@@ -37,6 +37,7 @@ datasource db {
 enum UserRole {
   rider
   park_staff
+  driver
   admin
 
   @@map("user_role")
@@ -197,8 +198,13 @@ model Driver {
   phone     String       @unique
   licenseNo String       @unique @map("license_no")
   status    DriverStatus @default(active)
+  userId    String?      @unique @map("user_id") @db.Uuid
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
 
+  // Nullable — a Driver is reference/fleet data on its own (assignable to
+  // trips) regardless of whether that person has app login access. Only
+  // set once an admin creates a login for them (role: driver on User).
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   trips Trip[]
 
   @@map("drivers")
@@ -211,14 +217,16 @@ model Driver {
 model User {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name              String?
-  phone             String   @unique
-  email             String?
+  email             String   @unique
+  passwordHash      String   @map("password_hash")
+  phone             String?  @unique
   role              UserRole @default(rider)
   homeParkId        String?  @map("home_park_id") @db.Uuid
   preferredLanguage String?  @default("en") @map("preferred_language")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  homePark Park? @relation("UserHomePark", fields: [homeParkId], references: [id], onDelete: NoAction)
+  homePark Park?   @relation("UserHomePark", fields: [homeParkId], references: [id], onDelete: NoAction)
+  driver   Driver?
 
   savedPassengers         SavedPassenger[]
   createdTripAlerts       TripAlert[]         @relation("TripAlertCreatedBy")
@@ -579,24 +587,8 @@ model SupportTicket {
 }
 
 // ------------------------------------------------------------
-// AUTH (not part of schema.sql — added for OTP phone login)
+// AUTH (not part of schema.sql — added for email+password login)
 // ------------------------------------------------------------
-
-// Short-lived OTP codes for phone verification. Code is bcrypt-hashed,
-// never stored in plaintext. A row is single-use (consumedAt) and
-// tracks attempts so verify-otp can lock out brute-force guessing.
-model OtpCode {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phone      String
-  codeHash   String    @map("code_hash")
-  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
-  attempts   Int       @default(0)
-  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
-
-  @@index([phone, createdAt], map: "idx_otp_codes_phone")
-  @@map("otp_codes")
-}
 
 // Opaque, DB-backed refresh tokens (not JWTs) so they can be revoked
 // individually. Only the SHA-256 hash is stored. Rotated on each use.

@@ -120,28 +120,36 @@ export function health() {
 export interface PublicUser {
   id: string
   name: string | null
-  phone: string
-  role: 'rider' | 'park_staff' | 'admin'
+  email: string
+  phone: string | null
+  role: 'rider' | 'park_staff' | 'driver' | 'admin'
   homeParkId: string | null
 }
 
-export function requestOtp(phone: string) {
-  return api.post<{ message: string }>('/auth/request-otp', { phone })
+export interface AuthSession {
+  accessToken: string
+  refreshToken: string
+  user: PublicUser
 }
 
-export function verifyOtp(phone: string, code: string) {
-  return api.post<{ accessToken: string; refreshToken: string; isNewUser: boolean; user: PublicUser }>(
-    '/auth/verify-otp',
-    { phone, code },
-  )
+export function registerRider(payload: { name: string; email: string; password: string; phone?: string }) {
+  return api.post<AuthSession>('/auth/register', payload)
+}
+
+export function login(email: string, password: string) {
+  return api.post<AuthSession>('/auth/login', { email, password })
 }
 
 export function getMe() {
   return api.get<PublicUser>('/auth/me')
 }
 
-export function updateMyName(name: string) {
-  return api.patch<PublicUser>('/auth/me', { name })
+export function updateMyProfile(payload: { name?: string; email?: string; phone?: string }) {
+  return api.patch<PublicUser>('/auth/me', payload)
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return api.post<void>('/auth/change-password', { currentPassword, newPassword })
 }
 
 export function logout() {
@@ -150,11 +158,20 @@ export function logout() {
 }
 
 // ------------------------------------------------------------
-// Admin
+// Admin — account provisioning (staff/admin/driver logins are never
+// self-service)
 // ------------------------------------------------------------
 
-export function promoteUser(payload: { phone: string; role: 'park_staff' | 'admin'; homeParkId?: string }) {
-  return api.post<PublicUser>('/admin/users/promote', payload)
+export function createStaffAccount(payload: { name: string; email: string; password: string; phone?: string; homeParkId: string }) {
+  return api.post<PublicUser>('/admin/staff', payload)
+}
+
+export function createAdminAccount(payload: { name: string; email: string; password: string; phone?: string }) {
+  return api.post<PublicUser>('/admin/admins', payload)
+}
+
+export function createDriverLogin(driverId: string, payload: { email: string; password: string }) {
+  return api.post<PublicUser>(`/admin/drivers/${driverId}/create-login`, payload)
 }
 
 // ------------------------------------------------------------
@@ -179,19 +196,61 @@ export interface Driver {
   id: string
   name: string
   phone: string
+  licenseNo: string
   status: 'active' | 'inactive'
+  hasLogin: boolean
 }
 
 export function listRoutes() {
   return api.get<RouteOption[]>('/admin/routes')
 }
 
+export interface RouteDetail {
+  id: string
+  label: string
+  durationMins: number
+  stops: { id: string; parkName: string; stopOrder: number; isBoardingPoint: boolean }[]
+  fares: { id: string; from: string; to: string; fareStandard: string; fareLuxury: string; fareVip: string }[]
+}
+
+export function getRouteDetail(id: string) {
+  return api.get<RouteDetail>(`/admin/routes/${id}/detail`)
+}
+
+export function createPark(payload: { name: string; city: string; state: string; address?: string }) {
+  return api.post<Park>('/admin/parks', payload)
+}
+
+export function createRoute(payload: {
+  stopParkIds: string[]
+  legFares: { standard: number; luxury: number; vip: number }[]
+  durationMins: number
+}) {
+  return api.post<{ id: string }>('/admin/routes', payload)
+}
+
 export function listBuses() {
   return api.get<Bus[]>('/admin/buses')
 }
 
+export function createBus(payload: { plate: string; capacity: number; class: Bus['class']; status?: Bus['status'] }) {
+  return api.post<Bus>('/admin/buses', payload)
+}
+
+export function updateBusStatus(id: string, status: Bus['status']) {
+  return api.patch<Bus>(`/admin/buses/${id}`, { status })
+}
+
 export function listDrivers() {
   return api.get<Driver[]>('/admin/drivers')
+}
+
+export function createDriver(payload: { name: string; phone: string; licenseNo: string; status?: Driver['status'] }) {
+  return api.post<Driver>('/admin/drivers', payload)
+}
+
+export function updateDriverStatus(id: string, status: Driver['status']) {
+  return api.patch<Driver>(`/admin/drivers/${id}`, { status })
 }
 
 // ------------------------------------------------------------
@@ -636,6 +695,26 @@ export interface Manifest {
 
 export function getManifest(tripId: string) {
   return api.get<Manifest>(`/staff/manifest/${tripId}`)
+}
+
+// ------------------------------------------------------------
+// Driver portal
+// ------------------------------------------------------------
+
+export interface DriverTrip {
+  id: string
+  departureTime: string
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  routeLabel: string
+  bus: Bus | null
+}
+
+export function listDriverTrips() {
+  return api.get<DriverTrip[]>('/driver/trips')
+}
+
+export function getDriverManifest(tripId: string) {
+  return api.get<Manifest>(`/driver/manifest/${tripId}`)
 }
 
 // ------------------------------------------------------------

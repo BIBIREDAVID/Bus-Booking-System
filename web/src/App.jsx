@@ -2,11 +2,9 @@ import { Routes, Route } from 'react-router-dom'
 import RequireRole from './components/RequireRole'
 
 import Splash from './pages/onboarding/Splash'
-import { OnboardingFlowProvider } from './pages/onboarding/OnboardingFlowContext'
-import Onboarding from './pages/onboarding/Onboarding'
-import PhoneEntry from './pages/onboarding/PhoneEntry'
-import OtpVerify from './pages/onboarding/OtpVerify'
-import NameEntry from './pages/onboarding/NameEntry'
+import RoleSelect from './pages/auth/RoleSelect'
+import Login from './pages/auth/Login'
+import Register from './pages/auth/Register'
 
 import RiderLayout from './pages/rider/RiderLayout'
 import Home from './pages/rider/Home'
@@ -29,13 +27,17 @@ import PendingPayments from './pages/staff/PendingPayments'
 import Checkin from './pages/staff/Checkin'
 import LostFound from './pages/staff/LostFound'
 
+import DriverLayout from './pages/driver/DriverLayout'
+import DriverTrips from './pages/driver/MyTrips'
+import DriverManifest from './pages/driver/DriverManifest'
+
 import AdminLayout from './pages/admin/AdminLayout'
 import Overview from './pages/admin/Overview'
 import RoutesPage from './pages/admin/Routes'
 import Fleet from './pages/admin/Fleet'
 import Reports from './pages/admin/Reports'
 import Complaints from './pages/admin/Complaints'
-import PromoteUser from './pages/admin/PromoteUser'
+import TeamMembers from './pages/admin/TeamMembers'
 import Schedules from './pages/admin/Schedules'
 import Trips from './pages/admin/Trips'
 import AdminBookings from './pages/admin/Bookings'
@@ -48,16 +50,10 @@ function App() {
     <Routes>
       <Route path="/splash" element={<Splash />} />
 
-      {/* Onboarding / OTP login */}
-      <Route element={<OnboardingFlowProvider />}>
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/onboarding/phone" element={<PhoneEntry />} />
-        <Route path="/onboarding/otp" element={<OtpVerify />} />
-      </Route>
-      {/* Name entry needs the authed user (just logged in), not the phone-entry context */}
-      <Route element={<RequireRole roles={['rider', 'park_staff', 'admin']} />}>
-        <Route path="/onboarding/name" element={<NameEntry />} />
-      </Route>
+      {/* Email + password auth */}
+      <Route path="/login" element={<RoleSelect />} />
+      <Route path="/login/:role" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       {/* Rider app */}
       <Route element={<RequireRole roles={['rider']} />}>
@@ -88,6 +84,14 @@ function App() {
         </Route>
       </Route>
 
+      {/* Driver portal */}
+      <Route element={<RequireRole roles={['driver']} />}>
+        <Route element={<DriverLayout />}>
+          <Route path="/driver" element={<DriverTrips />} />
+          <Route path="/driver/trips/:tripId/manifest" element={<DriverManifest />} />
+        </Route>
+      </Route>
+
       {/* Admin dashboard */}
       <Route element={<RequireRole roles={['admin']} />}>
         <Route element={<AdminLayout />}>
@@ -100,7 +104,7 @@ function App() {
           <Route path="/admin/fleet" element={<Fleet />} />
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/complaints" element={<Complaints />} />
-          <Route path="/admin/promote" element={<PromoteUser />} />
+          <Route path="/admin/team" element={<TeamMembers />} />
           <Route path="/admin/alerts" element={<Alerts />} />
           <Route path="/admin/support" element={<AdminSupport />} />
         </Route>

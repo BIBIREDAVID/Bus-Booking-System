@@ -5,7 +5,8 @@ import { prisma } from '../lib/prisma'
 
 export interface AuthedUser {
   id: string
-  phone: string
+  email: string
+  phone: string | null
   role: UserRole
   homeParkId: string | null
 }
@@ -30,7 +31,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const user = await prisma.user.findUnique({ where: { id: payload.sub } })
     if (!user) return res.status(401).json({ message: 'User not found' })
 
-    req.user = { id: user.id, phone: user.phone, role: user.role, homeParkId: user.homeParkId }
+    req.user = { id: user.id, email: user.email, phone: user.phone, role: user.role, homeParkId: user.homeParkId }
     next()
   } catch {
     return res.status(401).json({ message: 'Invalid or expired token' })

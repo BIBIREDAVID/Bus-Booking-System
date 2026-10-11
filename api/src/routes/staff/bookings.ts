@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { Router, type Response } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../lib/prisma'
@@ -9,6 +10,7 @@ import { bookManual, InsufficientBalanceError } from '../../lib/bookingTransacti
 import { notifyBookingConfirmation } from '../../lib/notifications'
 import { SeatConflictError } from '../../lib/holdSeat'
 import { serializeTicket } from '../../lib/ticket'
+import { hashPassword } from '../../lib/password'
 
 export const staffBookingsRouter = Router()
 
@@ -75,7 +77,21 @@ staffBookingsRouter.post('/bookings/manual', async (req, res) => {
 
     let passenger = await prisma.user.findUnique({ where: { phone: passengerPhone } })
     if (!passenger) {
-      passenger = await prisma.user.create({ data: { phone: passengerPhone, name: passengerName, role: 'rider' } })
+      // Walk-in passengers booked by staff don't set up their own
+      // login at the counter — a placeholder email/password lets them
+      // satisfy the same required columns as a self-registered rider;
+      // they can later self-register with this phone's real contact
+      // info if they want a usable login.
+      const passwordHash = await hashPassword(crypto.randomUUID())
+      passenger = await prisma.user.create({
+        data: {
+          phone: passengerPhone,
+          email: `${passengerPhone.replace(/\D/g, '')}@walkin.bookmybus.local`,
+          passwordHash,
+          name: passengerName,
+          role: 'rider',
+        },
+      })
     } else if (!passenger.name && passengerName) {
       passenger = await prisma.user.update({ where: { id: passenger.id }, data: { name: passengerName } })
     }
@@ -110,7 +126,7 @@ function serializePending(booking: {
   class: string
   createdAt: Date
   payAtParkCutoff: Date | null
-  user: { phone: string; name: string | null }
+  user: { phone: string | null; name: string | null }
   seat: { seatNumber: string }
   boardStop: { park: { name: string } }
   alightStop: { park: { name: string } }

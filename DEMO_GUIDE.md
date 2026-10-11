@@ -14,19 +14,22 @@ cd api
 npx prisma db seed
 ```
 
-## Accounts (all logins are OTP-only — no passwords)
+## Accounts (email + password login)
 
-In dev, OTP codes are not texted anywhere — they print to the API terminal as
-`[sendSms] ...`. Watch that terminal when logging in.
+Every seeded account shares **one password: `Passw0rd!`** (override with the
+`SEED_DEMO_PASSWORD` env var before seeding). Sign in from the role picker at
+`/login`, then the matching login page (Rider / Park Staff / Driver / Admin) —
+the role itself is decided by the account, not which page you used.
 
-| Role | Name | Phone |
+| Role | Name | Email |
 |---|---|---|
-| Admin | Admin | `+2348000000001` (override with `SEED_ADMIN_PHONE` env var) |
-| Park Staff | Counter Staff | `+2348033330001` (home park: Ojota Park, Lagos) |
-| Park Staff | Abuja Counter Staff | `+2348033330002` (home park: Utako Park, Abuja) |
-| Rider | Aisha Bello | `+2348022220001` |
-| Rider | Tunde Alabi | `+2348022220002` |
-| Rider | Ngozi Eze | `+2348022220003` |
+| Admin | Admin | `admin@bookmybus.dev` (override with `SEED_ADMIN_EMAIL`) |
+| Park Staff | Counter Staff | `staff.lagos@bookmybus.dev` (home park: Ojota Park, Lagos) |
+| Park Staff | Abuja Counter Staff | `staff.abuja@bookmybus.dev` (home park: Utako Park, Abuja) |
+| Driver | Chinedu Okafor | `driver.chinedu@bookmybus.dev` (the other 4 seeded drivers are fleet-only, no login) |
+| Rider | Aisha Bello | `aisha@bookmybus.dev` |
+| Rider | Tunde Alabi | `tunde@bookmybus.dev` |
+| Rider | Ngozi Eze | `ngozi@bookmybus.dev` |
 
 All three riders start with a ₦50,000 wallet balance every time the seed runs. Each
 also gets 1–2 saved passengers (for the "book for someone else" flow).
@@ -83,14 +86,17 @@ Plus one route-wide "holiday_notice" trip alert.
 
 ## Quick demo script
 
-1. Log in as **Aisha** (`+2348022220001`) → Home shows available rides + History
+1. Log in as **Aisha** (`aisha@bookmybus.dev`) → Home shows available rides + History
    has a cancel-with-refund and a cancel-without-refund example ready to try live.
-2. Log in as **Ngozi** (`+2348022220003`) → Home shows the "rate your trip" prompt.
-3. Log in as **Counter Staff** (`+2348033330001`) → Pending Payments shows Tunde's
-   pay-at-park booking; Check-in shows trip #4's manifest.
-4. Log in as **Admin** (`+2348000000001`) → Reports, trip alerts, complaint/ticket
-   resolution, and six routes' worth of trips/fleet to manage.
-5. Search **Lagos → Kano** or **Benin → Enugu** (or any other seeded pair) to show
+2. Log in as **Ngozi** (`ngozi@bookmybus.dev`) → Home shows the "rate your trip" prompt.
+3. Log in as **Counter Staff** (`staff.lagos@bookmybus.dev`) → Pending Payments shows
+   Tunde's pay-at-park booking; Check-in shows trip #4's manifest.
+4. Log in as **Chinedu** (`driver.chinedu@bookmybus.dev`) → My Trips shows his
+   assigned trips, including the trip #4 manifest from a driver's point of view.
+5. Log in as **Admin** (`admin@bookmybus.dev`) → Reports, trip alerts, complaint/ticket
+   resolution, Team Members (create staff/admin/driver logins), and Routes/Fleet &
+   Drivers (now real screens, not placeholders).
+6. Search **Lagos → Kano** or **Benin → Enugu** (or any other seeded pair) to show
    the network isn't just one corridor.
 
 ## New-PC setup
